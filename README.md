@@ -1,3 +1,4 @@
+<div align="center">
 # CodeBrix
 
 CodeBrix is an open-source, extensible visual programming platform for Machine Learning.
@@ -17,3 +18,4 @@ Enable community-driven visual libraries through a plugin architecture.
 ## Status
 
 🚧 Under active development.
+</div>
