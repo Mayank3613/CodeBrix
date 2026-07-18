@@ -1,0 +1,21 @@
+{
+  "name": "CodeBrix",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev" : "pnpm --filter codebrix-appsdesktop tauri dev",
+    "build" : "pnpm --filter codebrix-appsdesktop tauri build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.13.1",
+      "onFail": "download"
+    }
+  },
+  "type": "module"
+}
