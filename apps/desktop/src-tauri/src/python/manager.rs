@@ -1,7 +1,7 @@
 use std::process::{Command,Stdio};
 
 pub fn start_python(){
-    let child = Command::new("python3")
+    let child = Command::new("python")
         .arg("../../../python/runner.py")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
