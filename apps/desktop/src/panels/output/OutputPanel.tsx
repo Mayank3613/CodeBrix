@@ -23,8 +23,12 @@ export default function OutputPanel() {
     );
   }
 
-  const consoleLogs = result?.outputs.filter((o) => o.type === "console") || [];
-  const metricsOutputs = result?.outputs.filter((o) => o.type === "metrics") || [];
+  const outputs = useExecutionStore((s) => s.outputs);
+  const clearOutputs = useExecutionStore((s) => s.clearOutputs);
+
+  const liveOutputs = outputs.length > 0 ? outputs : result?.outputs || [];
+  const consoleLogs = liveOutputs.filter((o) => o.type === "console" || o.type === "error");
+  const metricsOutputs = liveOutputs.filter((o) => o.type === "metrics");
 
   return (
     <footer className="h-60 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex flex-col shrink-0 overflow-hidden select-none">
@@ -123,21 +127,44 @@ export default function OutputPanel() {
         )}
 
         {activeTab === "console" && (
-          <div className="space-y-1 bg-slate-950/80 p-3 rounded-lg border border-slate-800 text-slate-300">
+          <div className="space-y-2 bg-slate-950/80 p-3 rounded-lg border border-slate-800 text-slate-300">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-800/60 text-[10px] text-slate-500 font-sans">
+              <span>Standard Output & Error Stream ({consoleLogs.length} entries)</span>
+              {consoleLogs.length > 0 && (
+                <button
+                  onClick={clearOutputs}
+                  className="text-slate-400 hover:text-white hover:underline cursor-pointer"
+                >
+                  Clear Console
+                </button>
+              )}
+            </div>
             {consoleLogs.length > 0 ? (
-              consoleLogs.map((log, i) => {
-                if (log.type !== "console") return null;
-                return (
-                  <div key={i} className="flex gap-2">
-                    <span className="text-slate-600 select-none">[{log.timestamp.slice(11, 19)}]</span>
-                    <span className={log.stream === "stderr" ? "text-rose-400" : "text-emerald-300"}>
-                      {log.text}
-                    </span>
-                  </div>
-                );
-              })
+              <div className="space-y-1">
+                {consoleLogs.map((log, i) => {
+                  if (log.type === "error") {
+                    return (
+                      <div key={i} className="flex gap-2 text-rose-400 bg-rose-950/30 p-1.5 rounded border border-rose-900/40">
+                        <span className="text-slate-600 select-none">[{log.timestamp.slice(11, 19)}]</span>
+                        <span className="font-semibold">{log.title ? `[${log.title}] ` : ""}{log.message}</span>
+                      </div>
+                    );
+                  }
+                  if (log.type === "console") {
+                    return (
+                      <div key={i} className="flex gap-2">
+                        <span className="text-slate-600 select-none">[{log.timestamp.slice(11, 19)}]</span>
+                        <span className={log.stream === "stderr" ? "text-rose-400" : "text-emerald-300"}>
+                          {log.text}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })}
+              </div>
             ) : (
-              <div className="text-slate-500 italic">No console logs available.</div>
+              <div className="text-slate-500 italic py-2">No console logs available. Click "Run Pipeline" to execute.</div>
             )}
           </div>
         )}

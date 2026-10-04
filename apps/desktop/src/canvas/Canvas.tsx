@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo } from "react";
 import {
   ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
   Background,
   Controls,
   MiniMap,
@@ -18,9 +20,11 @@ const nodeTypes = {
   blockNode: BlockNode,
 };
 
-export default function Canvas() {
+function CanvasContent() {
+  const { screenToFlowPosition } = useReactFlow();
   const graph = useWorkflowStore((s) => s.graph);
   const updateBlockPosition = useWorkflowStore((s) => s.updateBlockPosition);
+  const addBlock = useWorkflowStore((s) => s.addBlock);
   const addConnection = useWorkflowStore((s) => s.addConnection);
   const removeConnection = useWorkflowStore((s) => s.removeConnection);
   const removeBlock = useWorkflowStore((s) => s.removeBlock);
@@ -28,10 +32,15 @@ export default function Canvas() {
   const selectedBlockId = useUiStore((s) => s.selectedBlockId);
   const selectBlock = useUiStore((s) => s.selectBlock);
 
+  // Connection feedback state
+  const [connectionFeedback, setConnectionFeedback] = useState<{
+    message: string;
+    type: "valid" | "error";
+  } | null>(null);
+
   // Derive React Flow nodes and edges via adapter
   const { nodes, edges } = useMemo(() => {
     const flowGraph = toReactFlowGraph(graph);
-    // Mark the selected node
     const mappedNodes = flowGraph.nodes.map((n) => ({
       ...n,
       selected: n.id === selectedBlockId,
@@ -63,53 +72,42 @@ export default function Canvas() {
     [removeConnection]
   );
 
-  const [connectionFeedback, setConnectionFeedback] = useState<{
-    message: string;
-    type: "error" | "valid";
-  } | null>(null);
-
+  // Type compatibility check
   const isValidConnection = useCallback(
-    (connection: import("@xyflow/react").Edge | FlowConnection) => {
-      if (!connection.source || !connection.target) return false;
-      if (connection.source === connection.target) {
+    (connection: FlowConnection | import("@xyflow/react").Edge): boolean => {
+      const sourceInstance = graph.blocks[connection.source];
+      const targetInstance = graph.blocks[connection.target];
+
+      if (!sourceInstance || !targetInstance) return false;
+
+      const sourceDef = blockRegistry.get(sourceInstance.definitionId);
+      const targetDef = blockRegistry.get(targetInstance.definitionId);
+
+      if (!sourceDef || !targetDef) return false;
+
+      const sourcePort = sourceDef.outputs.find((p) => p.id === connection.sourceHandle);
+      const targetPort = targetDef.inputs.find((p) => p.id === connection.targetHandle);
+
+      if (!sourcePort || !targetPort) return false;
+
+      const compatible = blockRegistry.checkPortCompatibility(
+        sourcePort.type,
+        targetPort.type
+      );
+
+      if (!compatible) {
         setConnectionFeedback({
-          message: "Cannot connect a block to itself",
+          message: `Incompatible: Cannot connect '${sourcePort.type}' output to '${targetPort.type}' input`,
           type: "error",
         });
-        return false;
-      }
-
-      const sourceBlock = graph.blocks[connection.source];
-      const targetBlock = graph.blocks[connection.target];
-      if (!sourceBlock || !targetBlock) return false;
-
-      const sourceDef = blockRegistry.get(sourceBlock.definitionId);
-      const targetDef = blockRegistry.get(targetBlock.definitionId);
-
-      const sourcePort = sourceDef?.outputs.find((p) => p.id === connection.sourceHandle);
-      const targetPort = targetDef?.inputs.find((p) => p.id === connection.targetHandle);
-
-      if (sourcePort && targetPort) {
-        const isCompatible = blockRegistry.checkPortCompatibility(
-          sourcePort.type,
-          targetPort.type
-        );
-        if (!isCompatible) {
-          setConnectionFeedback({
-            message: `Incompatible types: '${sourcePort.type}' cannot connect to '${targetPort.type}'`,
-            type: "error",
-          });
-          return false;
-        }
-
+      } else {
         setConnectionFeedback({
-          message: `Compatible connection: '${sourcePort.name}' (${sourcePort.type}) → '${targetPort.name}' (${targetPort.type})`,
+          message: `Compatible connection: '${sourcePort.type}' → '${targetPort.type}'`,
           type: "valid",
         });
-        return true;
       }
 
-      return true;
+      return compatible;
     },
     [graph]
   );
@@ -118,33 +116,24 @@ export default function Canvas() {
     (params: FlowConnection) => {
       if (!params.source || !params.target) return;
 
-      const sourceBlock = graph.blocks[params.source];
-      const targetBlock = graph.blocks[params.target];
-      if (!sourceBlock || !targetBlock) return;
+      const sourceInstance = graph.blocks[params.source];
+      const targetInstance = graph.blocks[params.target];
+      if (!sourceInstance || !targetInstance) return;
 
-      const sourceDef = blockRegistry.get(sourceBlock.definitionId);
-      const targetDef = blockRegistry.get(targetBlock.definitionId);
+      const sourceDef = blockRegistry.get(sourceInstance.definitionId);
+      const targetDef = blockRegistry.get(targetInstance.definitionId);
+      if (!sourceDef || !targetDef) return;
 
-      const sourcePort = sourceDef?.outputs.find((p) => p.id === params.sourceHandle);
-      const targetPort = targetDef?.inputs.find((p) => p.id === params.targetHandle);
+      const sourcePort = sourceDef.outputs.find((p) => p.id === params.sourceHandle);
+      const targetPort = targetDef.inputs.find((p) => p.id === params.targetHandle);
+      if (!sourcePort || !targetPort) return;
 
-      // Verify port compatibility if definitions are loaded
-      if (sourcePort && targetPort) {
-        const isCompatible = blockRegistry.checkPortCompatibility(
-          sourcePort.type,
-          targetPort.type
-        );
-        if (!isCompatible) {
-          setConnectionFeedback({
-            message: `Blocked connection: '${sourcePort.type}' is not compatible with '${targetPort.type}'`,
-            type: "error",
-          });
-          return;
-        }
+      if (!blockRegistry.checkPortCompatibility(sourcePort.type, targetPort.type)) {
+        return;
       }
 
       addConnection({
-        id: `conn-${Date.now().toString(36)}`,
+        id: `conn_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         sourceBlockId: params.source,
         sourcePortId: params.sourceHandle || "output",
         targetBlockId: params.target,
@@ -161,14 +150,42 @@ export default function Canvas() {
   );
 
   const onConnectEnd = useCallback(() => {
-    // Clear feedback shortly after drag release
     setTimeout(() => {
       setConnectionFeedback(null);
     }, 2500);
   }, []);
 
+  // Handle Drag-and-Drop from Palette
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      const blockId = event.dataTransfer.getData("application/codebrix-block-id");
+      if (!blockId) return;
+
+      const def = blockRegistry.get(blockId);
+      if (!def) return;
+
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      addBlock(def, position);
+    },
+    [screenToFlowPosition, addBlock]
+  );
+
   return (
-    <div className="flex-1 h-full bg-slate-950 relative overflow-hidden select-none">
+    <div
+      className="flex-1 h-full bg-slate-950 relative overflow-hidden select-none"
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
       {/* Type compatibility floating feedback banner */}
       {connectionFeedback && (
         <div
@@ -209,5 +226,13 @@ export default function Canvas() {
         />
       </ReactFlow>
     </div>
+  );
+}
+
+export default function Canvas() {
+  return (
+    <ReactFlowProvider>
+      <CanvasContent />
+    </ReactFlowProvider>
   );
 }

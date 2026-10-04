@@ -12,9 +12,11 @@
     }
   },
   "dependencies": {
-    "@codebrix/types": "workspace:*"
+    "@codebrix/types": "workspace:*",
+    "@codebrix/shared": "workspace:*"
   },
   "scripts": {
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "license": "MIT"

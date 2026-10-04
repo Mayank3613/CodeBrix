@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { parseCbxProject, serializeCbxProject } from "../../apps/desktop/src/project/projectManager";
+import { parseCbxProject, serializeCbxProject } from "../../apps/desktop/src/project/projectManager.js";
 import { MockWorkflowService } from "@codebrix/shared";
 import {
   generateCsvPython,
   generateExcelPython,
   generateScalingPython,
   generateEncodingPython,
-} from "../../libraries/data/src/index";
+} from "../../libraries/data/src/index.js";
 
 describe("Integration 3 Gate: .cbx Project Loading, Validation, and Code Generation", () => {
   const workflowService = new MockWorkflowService();

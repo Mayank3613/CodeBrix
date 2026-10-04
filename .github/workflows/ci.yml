@@ -19,8 +19,16 @@ on:
 
 jobs:
   validate:
-    name: Lint, Typecheck, Test & Build (Ubuntu)
-    runs-on: ubuntu-latest
+    name: Lint, Typecheck, Test & Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout repository
@@ -57,8 +65,12 @@ jobs:
       - name: Run TypeScript typecheck
         run: pnpm run typecheck
 
-      - name: Run Vitest test suites (contracts, mocks, spikes, app)
-        run: pnpm run test && pnpm --filter codebrix-appsdesktop test
+      - name: Run Vitest test suites (contracts, mocks, app, core & data libraries)
+        run: |
+          pnpm run test
+          pnpm --filter codebrix-appsdesktop test
+          pnpm --filter @codebrix/library-core test
+          pnpm --filter @codebrix/library-data test
 
       - name: Build frontend app
         run: pnpm run build

@@ -6,6 +6,7 @@ import {
   isValidBlockInstance,
   isValidConnection,
   isValidExecutionResult,
+  isValidLibraryManifest,
 } from "../guards.js";
 import {
   createMockWorkflowGraph,
@@ -74,6 +75,22 @@ describe("Shared Contract Guards", () => {
       const res = createMockExecutionResult();
       expect(isValidExecutionResult(res)).toBe(true);
       expect(isValidExecutionResult({ status: "success" })).toBe(false);
+    });
+
+    it("validates LibraryManifest", () => {
+      const validManifest = {
+        name: "data",
+        version: "0.1.0",
+        description: "Data blocks",
+        blocks: ["blocks/csv/block.js", "blocks/json/block.js"],
+      };
+      expect(isValidLibraryManifest(validManifest)).toBe(true);
+      expect(isValidLibraryManifest({ ...validManifest, name: "" })).toBe(false);
+      expect(isValidLibraryManifest({ ...validManifest, version: "" })).toBe(false);
+      expect(isValidLibraryManifest({ ...validManifest, blocks: "invalid" })).toBe(false);
+      expect(isValidLibraryManifest({ ...validManifest, blocks: [123] })).toBe(false);
+      expect(isValidLibraryManifest(null)).toBe(false);
+      expect(isValidLibraryManifest(undefined)).toBe(false);
     });
   });
 });

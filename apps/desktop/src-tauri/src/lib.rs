@@ -15,7 +15,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             commands::fs::read_file,
-            commands::fs::write_file
+            commands::fs::write_file,
+            commands::libraries::list_libraries,
+            commands::libraries::read_library_manifest,
+            commands::python::run_python_script,
+            commands::python::stop_python_script
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

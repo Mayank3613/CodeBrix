@@ -15,6 +15,8 @@ describe("Zustand Stores (D1-1.5)", () => {
     useValidationStore.getState().clearValidation();
     useExecutionStore.getState().resetExecution();
     useProjectStore.getState().resetProject();
+    useLibraryStore.getState().setLibraries([]);
+    useLibraryStore.getState().setSearchQuery("");
   });
 
   describe("workflowStore", () => {
@@ -58,10 +60,38 @@ describe("Zustand Stores (D1-1.5)", () => {
   });
 
   describe("libraryStore", () => {
-    it("manages installed libraries and registered blocks", () => {
-      expect(useLibraryStore.getState().installedLibraries).toContain("data");
-      useLibraryStore.getState().setFilterQuery("random");
-      expect(useLibraryStore.getState().filterQuery).toBe("random");
+    it("manages installed libraries and search query", () => {
+      // Initially no libraries loaded (runtime population happens via libraryLoader)
+      expect(useLibraryStore.getState().libraries).toBeInstanceOf(Array);
+
+      // Search query round-trips correctly
+      useLibraryStore.getState().setSearchQuery("random");
+      expect(useLibraryStore.getState().searchQuery).toBe("random");
+
+      // Reset
+      useLibraryStore.getState().setSearchQuery("");
+      expect(useLibraryStore.getState().searchQuery).toBe("");
+
+      // addLibrary appends and deduplicates by manifest.name
+      const fakeLib = {
+        manifest: { name: "test-lib", version: "0.1.0", description: "", blocks: [] },
+        path: "/fake",
+        manifestPath: "/fake/manifest.json",
+        isBuiltIn: false,
+        enabled: true,
+        isValid: true,
+        blockIds: ["test.dummy"],
+      };
+      useLibraryStore.getState().addLibrary(fakeLib);
+      expect(useLibraryStore.getState().libraries).toHaveLength(1);
+      // Adding again with same name should replace, not duplicate
+      useLibraryStore.getState().addLibrary({ ...fakeLib, blockIds: ["test.dummy", "test.other"] });
+      expect(useLibraryStore.getState().libraries).toHaveLength(1);
+      expect(useLibraryStore.getState().libraries[0]?.blockIds).toHaveLength(2);
+
+      // setLibraryEnabled toggles enabled flag
+      useLibraryStore.getState().setLibraryEnabled("test-lib", false);
+      expect(useLibraryStore.getState().libraries[0]?.enabled).toBe(false);
     });
   });
 

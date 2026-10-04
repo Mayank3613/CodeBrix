@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { WorkflowGraph } from "@codebrix/types";
+import type { WorkflowGraph, PortDefinition } from "@codebrix/types";
 import { MockWorkflowService, isCompatiblePortType } from "@codebrix/shared";
-import { csvBlockDefinition } from "../../libraries/data/src/index";
+import { csvBlockDefinition } from "../../libraries/data/src/index.js";
 
 describe("Integration 2 Gate: CSV to Train/Test Split Ordering", () => {
   const workflowService = new MockWorkflowService();
@@ -41,7 +41,7 @@ describe("Integration 2 Gate: CSV to Train/Test Split Ordering", () => {
 
   it("verifies port compatibility between CSV output and Split input", () => {
     const csvDef = csvBlockDefinition;
-    const csvPort = csvDef.outputs.find((p) => p.id === "dataset_out");
+    const csvPort = csvDef.outputs.find((p: PortDefinition) => p.id === "dataset_out");
     expect(csvPort).toBeDefined();
     expect(csvPort?.type).toBe("dataframe");
 

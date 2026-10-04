@@ -1,46 +1,76 @@
 import { create } from "zustand";
-import type { BlockDefinition, BlockCategory } from "@codebrix/types";
+import type { LibraryManifest } from "@codebrix/types";
+
+export interface LoadedLibrary {
+  manifest: LibraryManifest;
+  path: string;
+  manifestPath: string;
+  isBuiltIn: boolean;
+  enabled: boolean;
+  isValid: boolean;
+  error?: string;
+  blockIds: string[];
+}
 
 export interface LibraryState {
-  installedLibraries: string[];
-  registeredBlocks: BlockDefinition[];
-  filterQuery: string;
-  selectedCategory: BlockCategory | "all";
-
-  setInstalledLibraries: (libraries: string[]) => void;
-  addInstalledLibrary: (libraryName: string) => void;
-  setRegisteredBlocks: (blocks: BlockDefinition[]) => void;
-  addRegisteredBlock: (block: BlockDefinition) => void;
-  setFilterQuery: (query: string) => void;
-  setSelectedCategory: (category: BlockCategory | "all") => void;
+  libraries: LoadedLibrary[];
+  warnings: string[];
+  isLoading: boolean;
+  selectedCategory: string;
+  searchQuery: string;
+  setLibraries: (libraries: LoadedLibrary[]) => void;
+  addLibrary: (library: LoadedLibrary) => void;
+  setLibraryEnabled: (name: string, enabled: boolean) => void;
+  addWarning: (warning: string) => void;
+  dismissWarning: (index: number) => void;
+  clearWarnings: () => void;
+  setSelectedCategory: (category: string) => void;
+  setSearchQuery: (query: string) => void;
+  setLoading: (loading: boolean) => void;
 }
 
 export const useLibraryStore = create<LibraryState>((set) => ({
-  installedLibraries: ["core", "data", "scikit-learn", "visualization"],
-  registeredBlocks: [],
-  filterQuery: "",
+  libraries: [],
+  warnings: [],
+  isLoading: false,
   selectedCategory: "all",
+  searchQuery: "",
 
-  setInstalledLibraries: (libraries: string[]) => set({ installedLibraries: libraries }),
+  setLibraries: (libraries) => set({ libraries }),
 
-  addInstalledLibrary: (libraryName: string) =>
+  addLibrary: (library) =>
+    set((state) => {
+      const existingIdx = state.libraries.findIndex(
+        (l) => l.manifest.name === library.manifest.name
+      );
+      if (existingIdx >= 0) {
+        const next = [...state.libraries];
+        next[existingIdx] = library;
+        return { libraries: next };
+      }
+      return { libraries: [...state.libraries, library] };
+    }),
+
+  setLibraryEnabled: (name, enabled) =>
     set((state) => ({
-      installedLibraries: state.installedLibraries.includes(libraryName)
-        ? state.installedLibraries
-        : [...state.installedLibraries, libraryName],
+      libraries: state.libraries.map((lib) =>
+        lib.manifest.name === name ? { ...lib, enabled } : lib
+      ),
     })),
 
-  setRegisteredBlocks: (blocks: BlockDefinition[]) => set({ registeredBlocks: blocks }),
+  addWarning: (warning) =>
+    set((state) => ({ warnings: [...state.warnings, warning] })),
 
-  addRegisteredBlock: (block: BlockDefinition) =>
+  dismissWarning: (index) =>
     set((state) => ({
-      registeredBlocks: state.registeredBlocks.some((b) => b.id === block.id)
-        ? state.registeredBlocks
-        : [...state.registeredBlocks, block],
+      warnings: state.warnings.filter((_, i) => i !== index),
     })),
 
-  setFilterQuery: (query: string) => set({ filterQuery: query }),
+  clearWarnings: () => set({ warnings: [] }),
 
-  setSelectedCategory: (category: BlockCategory | "all") =>
-    set({ selectedCategory: category }),
+  setSelectedCategory: (selectedCategory) => set({ selectedCategory }),
+
+  setSearchQuery: (searchQuery) => set({ searchQuery }),
+
+  setLoading: (isLoading) => set({ isLoading }),
 }));

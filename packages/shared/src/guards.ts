@@ -5,6 +5,7 @@ import type {
   Connection,
   WorkflowGraph,
   ExecutionResult,
+  LibraryManifest,
 } from "@codebrix/types";
 import { PORT_COMPATIBILITY_MAP } from "./constants.js";
 
@@ -102,5 +103,22 @@ export function isValidExecutionResult(obj: unknown): obj is ExecutionResult {
     typeof res["blockResults"] === "object" &&
     res["blockResults"] !== null &&
     Array.isArray(res["outputs"])
+  );
+}
+
+/**
+ * Type guard for LibraryManifest objects (library.json).
+ */
+export function isValidLibraryManifest(obj: unknown): obj is LibraryManifest {
+  if (typeof obj !== "object" || obj === null) return false;
+  const manifest = obj as Record<string, unknown>;
+  return (
+    typeof manifest["name"] === "string" &&
+    manifest["name"].trim().length > 0 &&
+    typeof manifest["version"] === "string" &&
+    manifest["version"].trim().length > 0 &&
+    typeof manifest["description"] === "string" &&
+    Array.isArray(manifest["blocks"]) &&
+    manifest["blocks"].every((b) => typeof b === "string")
   );
 }

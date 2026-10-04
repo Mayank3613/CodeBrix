@@ -3,5 +3,8 @@
   "version": "0.1.0",
   "description": "CodeBrix core blocks (Variables, Conditions, Logic)",
   "author": "Developer 1",
-  "blocks": []
+  "blocks": [
+    "blocks/variables/block.js",
+    "blocks/conditions/block.js"
+  ]
 }
