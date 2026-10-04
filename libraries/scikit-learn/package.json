@@ -1,0 +1,21 @@
+{
+  "name": "@codebrix/library-scikit-learn",
+  "version": "0.1.0",
+  "description": "CodeBrix machine learning library: Split, RF, Linear, Decision Tree, KNN",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@codebrix/types": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT"
+}

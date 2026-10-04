@@ -1,0 +1,24 @@
+# CodeBrix CODEOWNERS
+# Developer 1: @Mayank3613 (Data & Workflow)
+# Developer 2: @Arshit-dv (ML & Execution)
+
+*                                         @Mayank3613 @Arshit-dv
+/apps/desktop/                            @Mayank3613
+/apps/desktop/src/panels/output/renderers/ @Arshit-dv
+/libraries/core/                          @Mayank3613
+/libraries/data/                          @Mayank3613
+/packages/graph-engine/                   @Arshit-dv
+/packages/codegen/                        @Arshit-dv
+/packages/runtime/                        @Arshit-dv
+/libraries/scikit-learn/                  @Arshit-dv
+/libraries/visualization/                 @Arshit-dv
+/python/                                  @Arshit-dv
+/tests/fixtures/                          @Arshit-dv
+/tests/spikes/                            @Arshit-dv
+/eslint.config.js                         @Arshit-dv
+/vitest.config.ts                         @Arshit-dv
+/pnpm-workspace.yaml                      @Mayank3613
+/package.json                             @Mayank3613
+/tsconfig.json                            @Mayank3613
+/packages/types/                          @Mayank3613 @Arshit-dv
+/packages/shared/                         @Mayank3613 @Arshit-dv

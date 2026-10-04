@@ -1,63 +1,77 @@
-# CodeBrix Branching & Two-Developer Working Guide
+# CodeBrix Branching & Two-Developer Collaboration Guide
 
-Based on the **CodeBrix Two-Person Working Plan** (4 October 2026).
-
----
-
-## 1. Branch Strategy
-
-We maintain two primary stream branches alongside `main`:
-1. `data-workflow` (Developer 1 stream: UI, canvas, blocks, project files)
-2. `ml-execution` (Developer 2 stream: graph engine, codegen, runtime, output)
-
-### Golden Rules:
-- **Never push directly to `main`**: All changes enter `main` through Pull Requests that pass CI.
-- **Contract Changes**: Any change to `packages/types` must be isolated in a dedicated PR tagged `contract`. Both developers must review and approve before merging.
-- **Keep PRs small**: Aim for under 400 lines changed per PR.
-- **Monday Sync**: Merge `main` into your active feature branch every Monday to avoid drift.
+**Task Plan, Project Structure, and Merge-Safety Reference (v2)**
 
 ---
 
-## 2. Developer 2 (ML & Execution) Setup Commands
+## 1. Developer Ownership Model
 
-To start working on Developer 2 stream:
+CodeBrix is split between two developers by **vertical capability**:
 
+| Area | Owner | Location |
+|---|---|---|
+| **Developer 1 (Data & Workflow)** | `@Mayank3613` | `apps/desktop/` (UI, canvas, registry, palette, properties, project system, stores, services, output container), `libraries/core/`, `libraries/data/`, `pnpm-workspace.yaml`, `package.json`, `tsconfig.json` |
+| **Developer 2 (ML & Execution)** | `@Arshit-dv` | `packages/graph-engine/`, `packages/codegen/`, `packages/runtime/`, `libraries/scikit-learn/`, `libraries/visualization/`, `python/`, `tests/fixtures/`, `tests/spikes/`, `eslint.config.js`, `vitest.config.ts`, `apps/desktop/src/panels/output/renderers/` |
+| **Shared Contracts** | Both | `packages/types/`, `packages/shared/`, `.github/workflows/ci.yml`, `tests/integration/`, `examples/` |
+
+---
+
+## 2. Merge-Conflict Prevention Rules
+
+1. **One Owner Per Folder (Enforced by `.github/CODEOWNERS`)**:
+   - Only edit folders you own. Never push changes directly into the other developer's directory. Request changes via PR comments or issues.
+2. **Protect Hot Files**:
+   - `pnpm-lock.yaml`: Never hand-merge. On conflict, accept `main` and run `pnpm install`.
+   - `package.json`: Scoped dependencies are added to the package that uses them (`apps/desktop`, `packages/*`, `libraries/*`), not the root.
+   - `tsconfig.json`: Developer 1 maintains path aliases. All `@codebrix/*` aliases are defined upfront.
+   - `vitest.config.ts`: Developer 2 maintains Vitest configuration.
+   - `eslint.config.js`: Developer 2 maintains ESLint rules.
+3. **Contract Changes Go Through Dedicated Contract PRs**:
+   - Any edit to `packages/types` or `packages/shared` must be isolated in its own PR labelled `contract`.
+   - Both developers must approve. Bump `CONTRACT_VERSION` in `packages/shared/src/constants.ts`.
+4. **One Folder Per Block**:
+   - Blocks live in self-contained folders with definitions, generator, tests, and documentation. Discovered via `library.json` rather than a centralized static array.
+5. **Short-Lived Branches & Small PRs**:
+   - Do not commit directly to `main`.
+   - Work on short-lived branches off `main` (e.g., `dev1/d1-1.3-block-registry` or `dev2/d2-1.1-graph-engine`).
+   - Keep PRs under ~400 lines. Review within 24 hours.
+   - Merge `main` into your active branch daily.
+6. **Formatting & Line-Ending Consistency**:
+   - `.editorconfig`, `.prettierrc`, and `.gitattributes` (`* text=auto eol=lf`) ensure clean diffs across Windows, macOS, and Linux.
+7. **Sequence Structural Changes**:
+   - Structural updates and skeletons are merged before adding functional modules.
+
+---
+
+## 3. Daily Workflow & Commands
+
+### Running Checks Locally
 ```bash
-# Ensure you are on latest main
-git checkout main
-
-# Create and switch to Developer 2 stream branch
-git checkout -b ml-execution
-git push -u origin ml-execution
-```
-
-### Running Checks Locally:
-```bash
-# Install dependencies
+# Install dependencies across monorepo workspaces
 pnpm install
 
-# Run TypeScript type check across all packages
+# TypeScript typecheck
 pnpm run typecheck
 
-# Run Vitest test suites
+# Vitest test suites
 pnpm run test
 
-# Run ESLint
+# ESLint
 pnpm run lint
 
-# Run all checks before opening a PR
+# Full local CI check
 pnpm run ci
 ```
 
----
-
-## 3. Developer 1 (Data & Workflow) Setup Commands
-
-Developer 1 creates:
+### Creating Feature Branches
 ```bash
+# Always start from latest main
 git checkout main
 git pull origin main
-git checkout -b data-workflow
-git push -u origin data-workflow
+
+# Create task branch
+git checkout -b dev1/d1-1.3-block-registry
+
+# Commit and push
+git push -u origin dev1/d1-1.3-block-registry
 ```
-Developer 1 builds against `@codebrix/types` and uses `MockWorkflowService` from `@codebrix/shared` until Developer 2's graph engine and validator land in Phase 1.

@@ -1,0 +1,21 @@
+{
+  "name": "@codebrix/library-core",
+  "version": "0.1.0",
+  "description": "CodeBrix core block library: Variables, Conditions, Logic",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@codebrix/types": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT"
+}

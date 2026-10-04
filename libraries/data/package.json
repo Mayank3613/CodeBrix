@@ -1,0 +1,21 @@
+{
+  "name": "@codebrix/library-data",
+  "version": "0.1.0",
+  "description": "CodeBrix data processing block library: CSV, JSON, Excel, Scaling, Encoding",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@codebrix/types": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT"
+}

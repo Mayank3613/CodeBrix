@@ -1,0 +1,22 @@
+{
+  "name": "@codebrix/runtime",
+  "version": "0.1.0",
+  "description": "Python process manager, runtime discovery, and execution coordinator for CodeBrix",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@codebrix/types": "workspace:*",
+    "@codebrix/shared": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT"
+}

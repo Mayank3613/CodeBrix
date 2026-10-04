@@ -1,7 +1,48 @@
-export default function Header(){
-    return(
-        <header className="py-1 px-4 bg-slate-900 h-[8%] m-0 ">
-            <p className="text-3xl text-white font-bold text-center mt-5">CodeBrix</p>
-        </header>
-    );
+import { CONTRACT_VERSION } from "@codebrix/shared";
+
+interface HeaderProps {
+  projectName: string;
+}
+
+export default function Header({ projectName }: HeaderProps) {
+  return (
+    <header className="h-14 px-5 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 flex items-center justify-between z-10 shrink-0">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 font-black text-white text-base">
+          CB
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm tracking-tight text-white">CodeBrix</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              v{CONTRACT_VERSION}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 font-mono tracking-tight leading-none mt-0.5">
+            Visual Machine Learning Studio
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/60">
+        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-xs text-slate-200 font-medium">{projectName}</span>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <span className="inline-flex items-center gap-1.5 text-xs text-amber-300 bg-amber-950/40 border border-amber-800/60 px-2.5 py-1 rounded-md">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+          Dev 1 Mode (Mock Service)
+        </span>
+        <a
+          href="https://github.com/Mayank3613/CodeBrix"
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-slate-400 hover:text-slate-200 transition-colors px-2 py-1 rounded hover:bg-slate-800"
+        >
+          GitHub
+        </a>
+      </div>
+    </header>
+  );
 }

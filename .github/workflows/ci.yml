@@ -29,7 +29,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v3
         with:
-          version: 9
+          version: 11
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -57,8 +57,8 @@ jobs:
       - name: Run TypeScript typecheck
         run: pnpm run typecheck
 
-      - name: Run Vitest test suites (contracts, mocks, spikes)
-        run: pnpm run test
+      - name: Run Vitest test suites (contracts, mocks, spikes, app)
+        run: pnpm run test && pnpm --filter codebrix-appsdesktop test
 
       - name: Build frontend app
         run: pnpm run build
