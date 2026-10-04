@@ -176,17 +176,25 @@ export default function Toolbar() {
   };
 
   const handleRun = async () => {
+    if (runState === "running" || isValidating) return;
+
     try {
+      // 1. Validate graph first
+      setIsValidating(true);
+      const val = await workflowService.validateGraph(graph);
+      setValidationResult(val);
+      setIsValidating(false);
+
+      if (!val.valid) {
+        useExecutionStore.getState().setStatusMessage(
+          `Validation failed (${val.errors.length} issue(s)) - resolve errors before running`
+        );
+        return;
+      }
+
       // Auto-expand output panel so user sees real-time execution
       if (!useUiStore.getState().isOutputOpen) {
         useUiStore.getState().toggleOutput();
-      }
-
-      // 1. Validate graph first
-      const val = await workflowService.validateGraph(graph);
-      setValidationResult(val);
-      if (!val.valid) {
-        return;
       }
 
       // 2. Generate execution plan and Python script
@@ -225,6 +233,7 @@ export default function Toolbar() {
       // 3. Run execution process
       await runPythonExecution(pythonCode, graph.id);
     } catch (err) {
+      setIsValidating(false);
       console.error("Execution error:", err);
     }
   };
@@ -461,25 +470,35 @@ export default function Toolbar() {
             <span>{isValidating ? "Validating..." : "Validate Graph"}</span>
           </button>
 
-          {runState === "running" ? (
-            <button
-              onClick={handleStop}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 active:scale-95 shadow-md shadow-rose-600/30 transition-all rounded-lg animate-pulse"
-              title="Stop Python process execution"
-            >
-              <span>■</span>
-              <span>Stop Execution</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleRun}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:scale-95 shadow-md shadow-emerald-600/20 transition-all rounded-lg"
-              title="Execute Python workflow"
-            >
-              <span>▶</span>
-              <span>Run Pipeline</span>
-            </button>
-          )}
+          {/* Run Pipeline Button */}
+          <button
+            onClick={handleRun}
+            disabled={runState === "running" || isValidating}
+            className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              runState === "running" || isValidating
+                ? "bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed opacity-50"
+                : "text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:scale-95 shadow-md shadow-emerald-600/20 cursor-pointer"
+            }`}
+            title={runState === "running" ? "Pipeline execution is in progress" : "Execute Python workflow"}
+          >
+            <span>▶</span>
+            <span>{isValidating ? "Validating..." : "Run Pipeline"}</span>
+          </button>
+
+          {/* Stop Execution Button */}
+          <button
+            onClick={handleStop}
+            disabled={runState !== "running"}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              runState === "running"
+                ? "text-white bg-rose-600 hover:bg-rose-500 active:scale-95 shadow-md shadow-rose-600/30 animate-pulse cursor-pointer"
+                : "bg-slate-900/60 text-slate-600 border border-slate-800/80 cursor-not-allowed opacity-40"
+            }`}
+            title={runState === "running" ? "Stop active Python execution" : "No active execution running"}
+          >
+            <span>■</span>
+            <span>Stop</span>
+          </button>
 
           <button
             onClick={handleReset}

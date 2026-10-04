@@ -1,10 +1,12 @@
 {
   "name": "core",
   "version": "0.1.0",
-  "description": "CodeBrix core blocks (Variables, Conditions, Logic)",
+  "description": "CodeBrix core blocks (Variables, Conditions, Loops, Functions)",
   "author": "Developer 1",
   "blocks": [
     "blocks/variables/block.js",
-    "blocks/conditions/block.js"
+    "blocks/conditions/block.js",
+    "blocks/loops/block.js",
+    "blocks/functions/block.js"
   ]
 }

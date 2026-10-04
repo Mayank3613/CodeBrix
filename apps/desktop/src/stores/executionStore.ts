@@ -45,10 +45,25 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
   setActiveBlockId: (blockId: string | null) => set({ activeBlockId: blockId }),
 
   setLatestResult: (latestResult: ExecutionResult | null) =>
-    set((state) => ({
-      latestResult,
-      outputs: latestResult?.outputs ? latestResult.outputs : state.outputs,
-    })),
+    set((state) => {
+      const nextStatuses = { ...state.blockStatuses };
+      if (latestResult?.blockResults) {
+        for (const [blkId, res] of Object.entries(latestResult.blockResults)) {
+          if (
+            res.status === "success" ||
+            res.status === "failed" ||
+            res.status === "running"
+          ) {
+            nextStatuses[blkId] = res.status;
+          }
+        }
+      }
+      return {
+        latestResult,
+        outputs: latestResult?.outputs ? latestResult.outputs : state.outputs,
+        blockStatuses: nextStatuses,
+      };
+    }),
 
   setExecutionId: (executionId: string | null) => set({ executionId }),
 
