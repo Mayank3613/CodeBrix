@@ -1,9 +1,15 @@
 import { blockRegistry } from "./BlockRegistry";
-import { csvBlockDefinition, jsonBlockDefinition } from "@codebrix/library-data";
+import {
+  csvBlockDefinition,
+  jsonBlockDefinition,
+  excelBlockDefinition,
+  scalingBlockDefinition,
+  encodingBlockDefinition,
+} from "@codebrix/library-data";
 import type { BlockDefinition } from "@codebrix/types";
 
 /**
- * Bootstrap default block definitions for Phase 1.
+ * Bootstrap default block definitions for Phase 1 and Phase 2.
  * This populates the BlockRegistry with data blocks and Iris mock pipeline blocks.
  */
 export function bootstrapDefaultBlocks(): void {
@@ -12,6 +18,9 @@ export function bootstrapDefaultBlocks(): void {
   // Register real blocks from Developer 1's data library
   blockRegistry.register(csvBlockDefinition);
   blockRegistry.register(jsonBlockDefinition);
+  blockRegistry.register(excelBlockDefinition);
+  blockRegistry.register(scalingBlockDefinition);
+  blockRegistry.register(encodingBlockDefinition);
 
   // Register placeholder definitions for Developer 2's blocks until Phase 2/3 landing
   const mlBlocks: BlockDefinition[] = [

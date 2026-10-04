@@ -36,3 +36,19 @@ code, pre, .font-mono {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.7);
 }
+
+/* React Flow Connection Type Feedback */
+.react-flow__handle-valid {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.8) !important;
+  transform: scale(1.35) !important;
+  transition: all 0.15s ease-in-out;
+}
+
+.react-flow__handle-invalid {
+  border-color: #f43f5e !important;
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+  transition: all 0.15s ease-in-out;
+}
+

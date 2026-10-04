@@ -8,6 +8,7 @@ import type {
   BlockInstance,
 } from "@codebrix/types";
 import { createIrisWorkflowMock } from "@codebrix/shared";
+import { useProjectStore } from "./projectStore";
 
 export interface WorkflowState {
   graph: WorkflowGraph;
@@ -50,11 +51,13 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
       },
     }));
 
+    useProjectStore.getState().markDirty(true);
     return id;
   },
 
-  removeBlock: (blockId: string) =>
-    set((state) => {
+  removeBlock: (blockId: string) => {
+    useProjectStore.getState().markDirty(true);
+    return set((state) => {
       const nextBlocks = { ...state.graph.blocks };
       delete nextBlocks[blockId];
 
@@ -69,7 +72,8 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
           connections: nextConnections,
         },
       };
-    }),
+    });
+  },
 
   updateBlockPosition: (blockId: string, position: Position2D) =>
     set((state) => {
@@ -90,8 +94,9 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
       };
     }),
 
-  updateBlockConfig: (blockId: string, key: string, value: unknown) =>
-    set((state) => {
+  updateBlockConfig: (blockId: string, key: string, value: unknown) => {
+    useProjectStore.getState().markDirty(true);
+    return set((state) => {
       const target = state.graph.blocks[blockId];
       if (!target) return state;
 
@@ -110,7 +115,8 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
           },
         },
       };
-    }),
+    });
+  },
 
   updateBlockState: (blockId: string, blockState: BlockState) =>
     set((state) => {
@@ -131,8 +137,9 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
       };
     }),
 
-  addConnection: (connection: Connection) =>
-    set((state) => {
+  addConnection: (connection: Connection) => {
+    useProjectStore.getState().markDirty(true);
+    return set((state) => {
       const exists = state.graph.connections.some(
         (c) =>
           c.sourceBlockId === connection.sourceBlockId &&
@@ -148,15 +155,18 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
           connections: [...state.graph.connections, connection],
         },
       };
-    }),
+    });
+  },
 
-  removeConnection: (connectionId: string) =>
-    set((state) => ({
+  removeConnection: (connectionId: string) => {
+    useProjectStore.getState().markDirty(true);
+    return set((state) => ({
       graph: {
         ...state.graph,
         connections: state.graph.connections.filter((c) => c.id !== connectionId),
       },
-    })),
+    }));
+  },
 
   clearWorkflow: () =>
     set((state) => ({

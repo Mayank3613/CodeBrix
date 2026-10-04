@@ -3,6 +3,7 @@ import { useProjectStore } from "../../stores";
 
 export default function Header() {
   const projectName = useProjectStore((s) => s.projectName);
+  const isDirty = useProjectStore((s) => s.isDirty);
 
   return (
     <header className="h-14 px-5 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 flex items-center justify-between z-10 shrink-0 select-none">
@@ -24,14 +25,17 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/60">
-        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <div className={`w-2 h-2 rounded-full ${isDirty ? "bg-amber-400" : "bg-emerald-400"} animate-pulse`} />
         <span className="text-xs text-slate-200 font-medium">{projectName}</span>
+        {isDirty && (
+          <span className="text-[10px] text-amber-400 font-mono font-medium">(unsaved)</span>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
         <span className="inline-flex items-center gap-1.5 text-xs text-indigo-300 bg-indigo-950/40 border border-indigo-800/60 px-2.5 py-1 rounded-md">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-          Phase 1: React Flow Canvas
+          Phase 2: Blocks & Project Files
         </span>
         <a
           href="https://github.com/Mayank3613/CodeBrix"

@@ -1,5 +1,7 @@
+import { useState, useEffect } from "react";
 import { useWorkflowStore, useUiStore } from "../../stores";
 import { blockRegistry } from "../../registry";
+import { validatePropertyValue } from "./propertyValidation";
 
 export default function PropertiesPanel() {
   const isPropertiesOpen = useUiStore((s) => s.isPropertiesOpen);
@@ -11,6 +13,18 @@ export default function PropertiesPanel() {
   );
   const updateBlockConfig = useWorkflowStore((s) => s.updateBlockConfig);
   const removeBlock = useWorkflowStore((s) => s.removeBlock);
+
+  // Local draft values & validation errors for live feedback
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
+  const [localValues, setLocalValues] = useState<Record<string, unknown>>({});
+
+  // Reset local state when block selection changes
+  useEffect(() => {
+    if (block) {
+      setLocalValues({ ...block.config });
+      setFieldErrors({});
+    }
+  }, [block?.id]);
 
   if (!isPropertiesOpen) return null;
 
@@ -35,6 +49,18 @@ export default function PropertiesPanel() {
   const handleDelete = () => {
     removeBlock(block.id);
     selectBlock(null);
+  };
+
+  const handleFieldChange = (key: string, value: unknown, fieldSchema: import("@codebrix/types").BlockConfigField) => {
+    setLocalValues((prev) => ({ ...prev, [key]: value }));
+
+    const error = validatePropertyValue(value, fieldSchema);
+    setFieldErrors((prev) => ({ ...prev, [key]: error }));
+
+    // Only update global workflow state when value satisfies the schema
+    if (error === null) {
+      updateBlockConfig(block.id, key, value);
+    }
   };
 
   return (
@@ -65,7 +91,8 @@ export default function PropertiesPanel() {
           ) : (
             <div className="space-y-3">
               {schemaEntries.map(([key, field]) => {
-                const val = block.config[key] ?? field.defaultValue ?? "";
+                const currentVal = localValues[key] ?? block.config[key] ?? field.defaultValue ?? "";
+                const hasError = Boolean(fieldErrors[key]);
 
                 return (
                   <div key={key} className="space-y-1">
@@ -82,17 +109,21 @@ export default function PropertiesPanel() {
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={Boolean(val)}
-                          onChange={(e) => updateBlockConfig(block.id, key, e.target.checked)}
+                          checked={Boolean(currentVal)}
+                          onChange={(e) => handleFieldChange(key, e.target.checked, field)}
                           className="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-0"
                         />
                         <span className="text-xs text-slate-400">Enabled</span>
                       </label>
                     ) : field.type === "select" ? (
                       <select
-                        value={String(val)}
-                        onChange={(e) => updateBlockConfig(block.id, key, e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                        value={String(currentVal)}
+                        onChange={(e) => handleFieldChange(key, e.target.value, field)}
+                        className={`w-full bg-slate-950 border rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none transition-colors ${
+                          hasError
+                            ? "border-rose-500 focus:border-rose-400"
+                            : "border-slate-700/80 focus:border-indigo-500"
+                        }`}
                       >
                         {field.options?.map((opt) => (
                           <option key={String(opt.value)} value={String(opt.value)}>
@@ -100,24 +131,66 @@ export default function PropertiesPanel() {
                           </option>
                         ))}
                       </select>
+                    ) : field.type === "file" ? (
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={String(currentVal)}
+                          placeholder={field.placeholder || "Select or enter file path..."}
+                          onChange={(e) => handleFieldChange(key, e.target.value, field)}
+                          className={`flex-1 bg-slate-950 border rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none transition-colors ${
+                            hasError
+                              ? "border-rose-500 focus:border-rose-400"
+                              : "border-slate-700/80 focus:border-indigo-500"
+                          }`}
+                        />
+                        <label className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-mono cursor-pointer border border-slate-700 flex items-center shrink-0">
+                          Browse
+                          <input
+                            type="file"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                handleFieldChange(key, file.name, field);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
                     ) : (
                       <input
                         type={field.type === "number" || field.type === "slider" ? "number" : "text"}
-                        step={field.type === "number" ? "any" : undefined}
-                        value={String(val)}
+                        step={field.type === "number" || field.type === "slider" ? field.step ?? "any" : undefined}
+                        min={field.min}
+                        max={field.max}
+                        value={String(currentVal)}
                         placeholder={field.placeholder}
                         onChange={(e) => {
-                          const parsed =
+                          const val =
                             field.type === "number" || field.type === "slider"
-                              ? parseFloat(e.target.value) || 0
+                              ? e.target.value === ""
+                                ? ""
+                                : Number(e.target.value)
                               : e.target.value;
-                          updateBlockConfig(block.id, key, parsed);
+                          handleFieldChange(key, val, field);
                         }}
-                        className="w-full bg-slate-950 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500 transition-colors"
+                        className={`w-full bg-slate-950 border rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none transition-colors ${
+                          hasError
+                            ? "border-rose-500 focus:border-rose-400"
+                            : "border-slate-700/80 focus:border-indigo-500"
+                        }`}
                       />
                     )}
 
-                    {field.description && (
+                    {/* Inline error feedback */}
+                    {hasError && (
+                      <p className="text-[10px] text-rose-400 font-mono mt-0.5">
+                        ⚠ {fieldErrors[key]}
+                      </p>
+                    )}
+
+                    {field.description && !hasError && (
                       <p className="text-[10px] text-slate-500">{field.description}</p>
                     )}
                   </div>

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   ReactFlow,
   Background,
@@ -63,6 +63,57 @@ export default function Canvas() {
     [removeConnection]
   );
 
+  const [connectionFeedback, setConnectionFeedback] = useState<{
+    message: string;
+    type: "error" | "valid";
+  } | null>(null);
+
+  const isValidConnection = useCallback(
+    (connection: import("@xyflow/react").Edge | FlowConnection) => {
+      if (!connection.source || !connection.target) return false;
+      if (connection.source === connection.target) {
+        setConnectionFeedback({
+          message: "Cannot connect a block to itself",
+          type: "error",
+        });
+        return false;
+      }
+
+      const sourceBlock = graph.blocks[connection.source];
+      const targetBlock = graph.blocks[connection.target];
+      if (!sourceBlock || !targetBlock) return false;
+
+      const sourceDef = blockRegistry.get(sourceBlock.definitionId);
+      const targetDef = blockRegistry.get(targetBlock.definitionId);
+
+      const sourcePort = sourceDef?.outputs.find((p) => p.id === connection.sourceHandle);
+      const targetPort = targetDef?.inputs.find((p) => p.id === connection.targetHandle);
+
+      if (sourcePort && targetPort) {
+        const isCompatible = blockRegistry.checkPortCompatibility(
+          sourcePort.type,
+          targetPort.type
+        );
+        if (!isCompatible) {
+          setConnectionFeedback({
+            message: `Incompatible types: '${sourcePort.type}' cannot connect to '${targetPort.type}'`,
+            type: "error",
+          });
+          return false;
+        }
+
+        setConnectionFeedback({
+          message: `Compatible connection: '${sourcePort.name}' (${sourcePort.type}) → '${targetPort.name}' (${targetPort.type})`,
+          type: "valid",
+        });
+        return true;
+      }
+
+      return true;
+    },
+    [graph]
+  );
+
   const onConnect = useCallback(
     (params: FlowConnection) => {
       if (!params.source || !params.target) return;
@@ -84,9 +135,10 @@ export default function Canvas() {
           targetPort.type
         );
         if (!isCompatible) {
-          console.warn(
-            `Incompatible port connection: ${sourcePort.type} -> ${targetPort.type}`
-          );
+          setConnectionFeedback({
+            message: `Blocked connection: '${sourcePort.type}' is not compatible with '${targetPort.type}'`,
+            type: "error",
+          });
           return;
         }
       }
@@ -98,12 +150,41 @@ export default function Canvas() {
         targetBlockId: params.target,
         targetPortId: params.targetHandle || "input",
       });
+
+      setConnectionFeedback({
+        message: "Connection created successfully",
+        type: "valid",
+      });
+      setTimeout(() => setConnectionFeedback(null), 2500);
     },
     [graph, addConnection]
   );
 
+  const onConnectEnd = useCallback(() => {
+    // Clear feedback shortly after drag release
+    setTimeout(() => {
+      setConnectionFeedback(null);
+    }, 2500);
+  }, []);
+
   return (
     <div className="flex-1 h-full bg-slate-950 relative overflow-hidden select-none">
+      {/* Type compatibility floating feedback banner */}
+      {connectionFeedback && (
+        <div
+          className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full border shadow-2xl flex items-center gap-2 text-xs font-mono backdrop-blur-md transition-all animate-bounce ${
+            connectionFeedback.type === "error"
+              ? "bg-rose-950/95 border-rose-500/80 text-rose-200 shadow-rose-950/50"
+              : "bg-emerald-950/95 border-emerald-500/80 text-emerald-200 shadow-emerald-950/50"
+          }`}
+        >
+          <span className="font-bold">
+            {connectionFeedback.type === "error" ? "✗" : "✓"}
+          </span>
+          <span>{connectionFeedback.message}</span>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges as unknown as import("@xyflow/react").Edge[]}
@@ -111,6 +192,8 @@ export default function Canvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onConnectEnd={onConnectEnd}
+        isValidConnection={isValidConnection}
         onNodeClick={(_event, node) => selectBlock(node.id)}
         onPaneClick={() => selectBlock(null)}
         fitView
