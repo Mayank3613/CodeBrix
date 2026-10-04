@@ -1,7 +1,7 @@
-import { blockRegistry } from "./BlockRegistry";
+import { blockRegistry } from "./BlockRegistry.js";
 import { isValidLibraryManifest } from "@codebrix/shared";
 import type { LibraryManifest, BlockDefinition } from "@codebrix/types";
-import { useLibraryStore, type LoadedLibrary } from "../stores/libraryStore";
+import { useLibraryStore, type LoadedLibrary } from "../stores/libraryStore.js";
 
 import {
   variablesBlockDefinition,

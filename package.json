@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "validate:iris": "tsx scripts/validate-iris.ts",
     "generate:iris": "tsx scripts/generate-iris.ts",
+    "run:iris": "tsx scripts/run-iris.ts",
     "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm --filter codebrix-appsdesktop test && pnpm --filter @codebrix/library-data test"
   },
   "keywords": [],

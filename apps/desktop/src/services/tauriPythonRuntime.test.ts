@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { runPythonExecution, stopPythonExecution } from "./tauriPythonRuntime";
-import { useExecutionStore } from "../stores/executionStore";
+import { runPythonExecution, stopPythonExecution } from "./tauriPythonRuntime.js";
+import { useExecutionStore } from "../stores/executionStore.js";
 
 describe("Tauri Python Runtime Client (D1-3.6)", () => {
   beforeEach(() => {

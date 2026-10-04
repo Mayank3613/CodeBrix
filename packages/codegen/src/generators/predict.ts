@@ -22,7 +22,7 @@ export class PredictGenerator implements BlockCodeGenerator {
       lines.push(`emit_json({`);
       lines.push(`    "type": "console",`);
       lines.push(`    "stream": "stdout",`);
-      lines.push(`    "text": f"[{block.id}] Predict: generated {len(${predictionsOut})} predictions",`);
+      lines.push(`    "text": f"[${block.id}] Predict: generated {len(${predictionsOut})} predictions",`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
     }

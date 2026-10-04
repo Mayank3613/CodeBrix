@@ -18,14 +18,24 @@ export class CsvLoaderGenerator implements BlockCodeGenerator {
       lines.push(`# Block: ${block.label ?? "CSV Loader"} (${block.id})`);
     }
 
-    lines.push(`csv_path_${block.id.replace(/[^a-zA-Z0-9_]/g, "_")} = ${filePathExpr}`);
-    lines.push(`${outputVar} = pd.read_csv(csv_path_${block.id.replace(/[^a-zA-Z0-9_]/g, "_")})`);
+    const safeId = block.id.replace(/[^a-zA-Z0-9_]/g, "_");
+    lines.push(`csv_path_${safeId} = ${filePathExpr}`);
+    lines.push(`if not os.path.isabs(csv_path_${safeId}) and not os.path.exists(csv_path_${safeId}):`);
+    lines.push(`    for _cand in [`);
+    lines.push(`        os.path.join(os.getcwd(), csv_path_${safeId}),`);
+    lines.push(`        os.path.join(os.path.dirname(os.getcwd()), csv_path_${safeId}),`);
+    lines.push(`        os.path.join(os.path.dirname(os.path.dirname(os.getcwd())), csv_path_${safeId}),`);
+    lines.push(`    ]:`);
+    lines.push(`        if os.path.exists(_cand):`);
+    lines.push(`            csv_path_${safeId} = _cand`);
+    lines.push(`            break`);
+    lines.push(`${outputVar} = pd.read_csv(csv_path_${safeId})`);
 
     if (options.includeProtocolHooks) {
       lines.push(`emit_json({`);
       lines.push(`    "type": "console",`);
       lines.push(`    "stream": "stdout",`);
-      lines.push(`    "text": f"[{block.id}] Loaded {len(${outputVar})} rows, {len(${outputVar}.columns)} columns from {csv_path_${block.id.replace(/[^a-zA-Z0-9_]/g, "_")}}",`);
+      lines.push(`    "text": f"[${block.id}] Loaded {len(${outputVar})} rows, {len(${outputVar}.columns)} columns from {csv_path_${safeId}}",`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
     }

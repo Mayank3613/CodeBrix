@@ -32,7 +32,7 @@ export class ConfusionMatrixGenerator implements BlockCodeGenerator {
       lines.push(`emit_json({`);
       lines.push(`    "type": "console",`);
       lines.push(`    "stream": "stdout",`);
-      lines.push(`    "text": f"[{block.id}] Confusion Matrix generated:\\n{cm_${cleanId}}",`);
+      lines.push(`    "text": f"[${block.id}] Confusion Matrix generated:\\n{cm_${cleanId}}",`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
     }

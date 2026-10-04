@@ -17,7 +17,7 @@ export class FallbackBlockGenerator implements BlockCodeGenerator {
       lines.push(`emit_json({`);
       lines.push(`    "type": "console",`);
       lines.push(`    "stream": "stdout",`);
-      lines.push(`    "text": f"[{block.id}] Generic execution completed for ${block.definitionId}",`);
+      lines.push(`    "text": f"[${block.id}] Generic execution completed for ${block.definitionId}",`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
     }

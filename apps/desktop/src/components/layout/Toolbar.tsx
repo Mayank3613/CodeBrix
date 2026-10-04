@@ -162,6 +162,23 @@ export default function Toolbar() {
     }
   };
 
+  const handleExportPython = async () => {
+    try {
+      if ("generatePythonScript" in workflowService) {
+        const code = await (workflowService as unknown as { generatePythonScript: (g: typeof graph) => Promise<string> }).generatePythonScript(graph);
+        const blob = new Blob([code], { type: "text/x-python;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${projectName.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}_pipeline.py`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      alert(`Export Python error: ${(err as Error).message}`);
+    }
+  };
+
   const handleValidate = async () => {
     setIsValidating(true);
     try {
@@ -176,24 +193,23 @@ export default function Toolbar() {
 
   const handleRun = async () => {
     try {
-      // Execute via Tauri Python process runner
-      const mockScript = `# Auto-generated CodeBrix workflow execution
-import sys
-import json
-import time
+      setIsValidating(true);
+      const valResult = await workflowService.validateGraph(graph);
+      setValidationResult(valResult);
+      setIsValidating(false);
 
-print(json.dumps({"event": "status", "payload": "running"}))
-time.sleep(0.3)
-print(json.dumps({"type": "console", "stream": "stdout", "text": "Loading dataset and executing pipeline..."}))
-time.sleep(0.4)
-print(json.dumps({"type": "metrics", "title": "Model Evaluation", "metrics": {"accuracy": 0.967, "loss": 0.033}}))
-time.sleep(0.3)
-print(json.dumps({"type": "console", "stream": "stdout", "text": "Execution completed successfully."}))
-print(json.dumps({"event": "done", "payload": {"exitCode": 0, "status": "success"}}))
-`;
-      await runPythonExecution(mockScript, graph.id);
+      if (!valResult.valid) {
+        alert("Workflow contains validation errors. Please inspect the validation panel before running.");
+        return;
+      }
+
+      if (!useUiStore.getState().isOutputOpen) {
+        useUiStore.getState().toggleOutput();
+      }
+      await workflowService.executeWorkflow(graph);
     } catch (err) {
       console.error("Execution error:", err);
+      alert(`Execution error: ${(err as Error).message}`);
     }
   };
 
@@ -319,6 +335,13 @@ print(json.dumps({"event": "done", "payload": {"exitCode": 0, "status": "success
               title="Save project as a new file"
             >
               Save As
+            </button>
+            <button
+              onClick={handleExportPython}
+              className="px-2 py-1 text-xs text-indigo-300 hover:text-indigo-200 hover:bg-indigo-950/60 rounded transition-colors"
+              title="Export standalone Python script (.py)"
+            >
+              Export .py
             </button>
           </div>
 

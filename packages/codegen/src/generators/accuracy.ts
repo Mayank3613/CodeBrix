@@ -31,7 +31,7 @@ export class AccuracyGenerator implements BlockCodeGenerator {
       lines.push(`emit_json({`);
       lines.push(`    "type": "console",`);
       lines.push(`    "stream": "stdout",`);
-      lines.push(`    "text": f"[{block.id}] Model Accuracy: {${scoreOut}:.4f} ({${scoreOut} * 100:.2f}%)",`);
+      lines.push(`    "text": f"[${block.id}] Model Accuracy: {${scoreOut}:.4f} ({${scoreOut} * 100:.2f}%)",`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
     }

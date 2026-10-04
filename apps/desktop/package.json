@@ -13,6 +13,8 @@
   "dependencies": {
     "@codebrix/types": "workspace:*",
     "@codebrix/shared": "workspace:*",
+    "@codebrix/graph-engine": "workspace:*",
+    "@codebrix/codegen": "workspace:*",
     "@codebrix/library-core": "workspace:*",
     "@codebrix/library-data": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",

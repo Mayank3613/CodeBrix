@@ -35,7 +35,7 @@ export class RandomForestGenerator implements BlockCodeGenerator {
       lines.push(`emit_json({`);
       lines.push(`    "type": "console",`);
       lines.push(`    "stream": "stdout",`);
-      lines.push(`    "text": f"[{block.id}] Random Forest trained: {${nEstimators}} estimators on {len(X_${cleanId})} samples",`);
+      lines.push(`    "text": f"[${block.id}] Random Forest trained: {${nEstimators}} estimators on {len(X_${cleanId})} samples",`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
     }

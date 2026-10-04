@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { workflowService } from "./index";
+import { workflowService } from "./index.js";
 import { createIrisWorkflowMock } from "@codebrix/shared";
 
 describe("WorkflowService (Desktop Service Provider)", () => {
@@ -32,5 +32,15 @@ describe("WorkflowService (Desktop Service Provider)", () => {
     expect(result.outputs.length).toBeGreaterThan(0);
     const consoleOutput = result.outputs.find((o) => o.type === "console");
     expect(consoleOutput).toBeDefined();
+  });
+
+  it("generates standalone Python script from workflow DAG", async () => {
+    const irisGraph = createIrisWorkflowMock();
+    const service = workflowService as unknown as { generatePythonScript: (g: typeof irisGraph) => Promise<string> };
+    expect(typeof service.generatePythonScript).toBe("function");
+    const script = await service.generatePythonScript(irisGraph);
+    expect(script).toContain("import pandas as pd");
+    expect(script).toContain("RandomForestClassifier");
+    expect(script).toContain("emit_json");
   });
 });

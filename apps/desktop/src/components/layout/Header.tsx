@@ -35,7 +35,7 @@ export default function Header() {
       <div className="flex items-center gap-3">
         <span className="inline-flex items-center gap-1.5 text-xs text-indigo-300 bg-indigo-950/40 border border-indigo-800/60 px-2.5 py-1 rounded-md">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-          Phase 2: Blocks & Project Files
+          Phase 4: Full App Integration
         </span>
         <a
           href="https://github.com/Mayank3613/CodeBrix"

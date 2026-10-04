@@ -8,6 +8,7 @@ export default function OutputPanel() {
 
   const runState = useExecutionStore((s) => s.runState);
   const result = useExecutionStore((s) => s.latestResult);
+  const statusMessage = useExecutionStore((s) => s.statusMessage);
 
   if (!isOutputOpen) {
     return (
@@ -51,17 +52,17 @@ export default function OutputPanel() {
 
         <div className="flex items-center gap-4 text-xs font-mono">
           {runState === "running" ? (
-            <span className="text-amber-400 flex items-center gap-1.5 animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
-              Running execution...
+            <span className="text-amber-400 flex items-center gap-1.5 animate-pulse truncate max-w-md">
+              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+              {statusMessage || "Running execution..."}
             </span>
           ) : result ? (
             <div className="flex items-center gap-3 text-slate-400">
               <span className="text-emerald-400 font-semibold flex items-center gap-1">
                 ✓ {result.status}
               </span>
-              <span>{result.durationMs}ms</span>
-              <span>exit: {result.exitCode}</span>
+              {typeof result.durationMs === "number" && <span>{result.durationMs}ms</span>}
+              {typeof result.exitCode === "number" && <span>exit: {result.exitCode}</span>}
             </div>
           ) : (
             <span className="text-slate-500 italic">No runs yet</span>
