@@ -11,6 +11,8 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "validate:iris": "tsx scripts/validate-iris.ts",
+    "generate:iris": "tsx scripts/generate-iris.ts",
     "ci": "pnpm lint && pnpm typecheck && pnpm test"
   },
   "keywords": [],

@@ -1,0 +1,24 @@
+{
+  "name": "@codebrix/codegen",
+  "version": "0.1.0",
+  "description": "Python code generator for CodeBrix workflows",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@codebrix/types": "workspace:*",
+    "@codebrix/shared": "workspace:*",
+    "@codebrix/graph-engine": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "license": "MIT"
+}

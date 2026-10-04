@@ -1,0 +1,24 @@
+{
+  "name": "@codebrix/graph-engine",
+  "version": "0.1.0",
+  "description": "Graph validation, cycle detection, topological sort, and execution planning for CodeBrix workflows",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@codebrix/types": "workspace:*",
+    "@codebrix/shared": "workspace:*",
+    "nanoid": "^6.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "license": "MIT"
+}

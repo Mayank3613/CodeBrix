@@ -19,6 +19,8 @@ export default defineConfig({
     alias: {
       "@codebrix/types": path.resolve(__dirname, "./packages/types/src/index.ts"),
       "@codebrix/shared": path.resolve(__dirname, "./packages/shared/src/index.ts"),
+      "@codebrix/graph-engine": path.resolve(__dirname, "./packages/graph-engine/src/index.ts"),
+      "@codebrix/codegen": path.resolve(__dirname, "./packages/codegen/src/index.ts"),
     },
   },
 });
