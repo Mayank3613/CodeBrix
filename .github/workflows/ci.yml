@@ -4,12 +4,16 @@ on:
   push:
     branches:
       - main
+      - ml-execution
+      - data-workflow
       - feature/data-workflow
       - feature/ml-execution
       - 'feature/**'
   pull_request:
     branches:
       - main
+      - ml-execution
+      - data-workflow
       - feature/data-workflow
       - feature/ml-execution
 

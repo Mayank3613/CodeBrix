@@ -7,8 +7,8 @@ Based on the **CodeBrix Two-Person Working Plan** (4 October 2026).
 ## 1. Branch Strategy
 
 We maintain two primary stream branches alongside `main`:
-1. `feature/data-workflow` (Developer 1 stream: UI, canvas, blocks, project files)
-2. `feature/ml-execution` (Developer 2 stream: graph engine, codegen, runtime, output)
+1. `data-workflow` (Developer 1 stream: UI, canvas, blocks, project files)
+2. `ml-execution` (Developer 2 stream: graph engine, codegen, runtime, output)
 
 ### Golden Rules:
 - **Never push directly to `main`**: All changes enter `main` through Pull Requests that pass CI.
@@ -27,10 +27,8 @@ To start working on Developer 2 stream:
 git checkout main
 
 # Create and switch to Developer 2 stream branch
-git checkout -b feature/ml-execution
-
-# For individual tasks/PRs, create short-lived sub-branches:
-git checkout -b feat/phase0-contracts-spike
+git checkout -b ml-execution
+git push -u origin ml-execution
 ```
 
 ### Running Checks Locally:
@@ -58,6 +56,8 @@ pnpm run ci
 Developer 1 creates:
 ```bash
 git checkout main
-git checkout -b feature/data-workflow
+git pull origin main
+git checkout -b data-workflow
+git push -u origin data-workflow
 ```
 Developer 1 builds against `@codebrix/types` and uses `MockWorkflowService` from `@codebrix/shared` until Developer 2's graph engine and validator land in Phase 1.
