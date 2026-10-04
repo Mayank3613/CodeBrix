@@ -39,26 +39,42 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
   const isSuccess = blockStatus === "success";
   const isFailed = blockStatus === "failed";
 
+  // Dynamic visual styling combining selection, execution status, and validation issues
+  let borderAndRingClass = "border-slate-800 hover:border-slate-600";
+  if (hasError) {
+    borderAndRingClass = "border-rose-500 ring-2 ring-rose-500/40 shadow-lg shadow-rose-500/20";
+  } else if (isRunning) {
+    borderAndRingClass = "border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/25 animate-pulse";
+  } else if (isSuccess) {
+    borderAndRingClass = "border-emerald-500/90 ring-1 ring-emerald-500/40 shadow-emerald-500/10";
+  } else if (isFailed) {
+    borderAndRingClass = "border-rose-500 ring-2 ring-rose-500/60 shadow-lg shadow-rose-500/30";
+  }
+
+  const selectionClass = selected
+    ? "outline-2 outline-indigo-400 outline-offset-2 shadow-indigo-500/30 shadow-xl"
+    : "";
+
   return (
     <div
-      className={`min-w-[220px] rounded-xl backdrop-blur-md bg-slate-900/95 border transition-all text-xs select-none shadow-xl ${
-        selected
-          ? "border-indigo-400 ring-2 ring-indigo-500/30 shadow-indigo-500/20"
-          : hasError
-          ? "border-rose-500 ring-2 ring-rose-500/30"
-          : isRunning
-          ? "border-amber-400 ring-2 ring-amber-500/40 animate-pulse"
-          : isSuccess
-          ? "border-emerald-500/80"
-          : isFailed
-          ? "border-rose-500"
-          : "border-slate-800 hover:border-slate-600"
-      }`}
+      className={`min-w-[220px] rounded-xl backdrop-blur-md bg-slate-900/95 border transition-all text-xs select-none shadow-xl ${borderAndRingClass} ${selectionClass}`}
     >
       {/* Node Header */}
       <div className="px-3 py-2 border-b border-slate-800/80 bg-gradient-to-r from-slate-800/80 to-slate-900/60 rounded-t-xl flex items-center justify-between">
         <div className="flex items-center gap-2 truncate">
-          <span className="w-2 h-2 rounded-full bg-indigo-400" />
+          <span
+            className={`w-2 h-2 rounded-full ${
+              isRunning
+                ? "bg-amber-400 animate-ping"
+                : isSuccess
+                ? "bg-emerald-400"
+                : isFailed
+                ? "bg-rose-400"
+                : hasError
+                ? "bg-rose-500"
+                : "bg-indigo-400"
+            }`}
+          />
           <span className="font-semibold text-white tracking-tight truncate">
             {nodeData.label || def?.name || nodeData.definitionId}
           </span>
@@ -70,28 +86,66 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
 
       {/* Node Content & Ports */}
       <div className="p-3 space-y-2">
-        {/* Status bar */}
-        <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-          <span className="text-slate-500 truncate max-w-[120px]">{id}</span>
-          <span
-            className={`capitalize font-semibold ${
-              isRunning
-                ? "text-amber-400"
-                : isSuccess
-                ? "text-emerald-400"
-                : isFailed
-                ? "text-rose-400"
-                : "text-slate-400"
-            }`}
-          >
-            {blockStatus}
+        {/* Status bar slot */}
+        <div className="flex items-center justify-between text-[10px] font-mono border-b border-slate-800/50 pb-1.5">
+          <span className="text-slate-500 truncate max-w-[110px]" title={id}>
+            {id}
           </span>
+
+          <div className="flex items-center gap-1.5 font-semibold">
+            {isRunning ? (
+              <span className="text-amber-400 flex items-center gap-1">
+                <svg
+                  className="animate-spin h-2.5 w-2.5 text-amber-400"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v8H4z"
+                  />
+                </svg>
+                <span>Running</span>
+              </span>
+            ) : isSuccess ? (
+              <span className="text-emerald-400 flex items-center gap-1">
+                <span>✓</span>
+                <span>Completed</span>
+              </span>
+            ) : isFailed ? (
+              <span className="text-rose-400 flex items-center gap-1">
+                <span>✗</span>
+                <span>Failed</span>
+              </span>
+            ) : (
+              <span className="text-slate-500 flex items-center gap-1 font-normal">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+                <span>Idle</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Validation Error banner if present */}
         {hasError && (
-          <div className="p-1.5 rounded bg-rose-950/60 border border-rose-800/80 text-[10px] text-rose-300">
-            ⚠ {errors[0]?.message}
+          <div className="p-1.5 rounded bg-rose-950/70 border border-rose-800/90 text-[10px] text-rose-300 leading-tight">
+            <span className="font-bold mr-1">⚠</span>
+            <span>{errors[0]?.message}</span>
+            {errors.length > 1 && (
+              <span className="text-rose-400 font-mono ml-1 text-[9px]">
+                (+{errors.length - 1} more)
+              </span>
+            )}
           </div>
         )}
 

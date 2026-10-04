@@ -1,9 +1,17 @@
 import { create } from "zustand";
 
-export type OutputTab = "metrics" | "console" | "table" | "visuals";
+export type OutputTab =
+  | "metrics"
+  | "console"
+  | "table"
+  | "image"
+  | "plots"
+  | "visuals";
 
 export interface UiState {
   selectedBlockId: string | null;
+  focusedBlockId: string | null;
+  focusTarget: { blockId: string; timestamp: number } | null;
   activeOutputTab: OutputTab;
   isPaletteOpen: boolean;
   isPropertiesOpen: boolean;
@@ -11,6 +19,7 @@ export interface UiState {
   zoomLevel: number;
 
   selectBlock: (blockId: string | null) => void;
+  focusBlock: (blockId: string) => void;
   setActiveOutputTab: (tab: OutputTab) => void;
   togglePalette: () => void;
   toggleProperties: () => void;
@@ -21,19 +30,30 @@ export interface UiState {
 
 export const useUiStore = create<UiState>((set) => ({
   selectedBlockId: "blk-csv",
+  focusedBlockId: null,
+  focusTarget: null,
   activeOutputTab: "metrics",
   isPaletteOpen: true,
   isPropertiesOpen: true,
   isOutputOpen: true,
   zoomLevel: 1,
 
-  selectBlock: (blockId: string | null) => set({ selectedBlockId: blockId }),
+  selectBlock: (blockId: string | null) =>
+    set({ selectedBlockId: blockId, focusedBlockId: blockId }),
+
+  focusBlock: (blockId: string) =>
+    set({
+      selectedBlockId: blockId,
+      focusedBlockId: blockId,
+      focusTarget: { blockId, timestamp: Date.now() },
+    }),
 
   setActiveOutputTab: (tab: OutputTab) => set({ activeOutputTab: tab }),
 
   togglePalette: () => set((state) => ({ isPaletteOpen: !state.isPaletteOpen })),
 
-  toggleProperties: () => set((state) => ({ isPropertiesOpen: !state.isPropertiesOpen })),
+  toggleProperties: () =>
+    set((state) => ({ isPropertiesOpen: !state.isPropertiesOpen })),
 
   toggleOutput: () => set((state) => ({ isOutputOpen: !state.isOutputOpen })),
 
@@ -42,6 +62,8 @@ export const useUiStore = create<UiState>((set) => ({
   resetUi: () =>
     set({
       selectedBlockId: null,
+      focusedBlockId: null,
+      focusTarget: null,
       activeOutputTab: "metrics",
       isPaletteOpen: true,
       isPropertiesOpen: true,

@@ -153,7 +153,7 @@ export function createIrisWorkflowMock(): WorkflowGraph {
         position: { x: 280, y: 150 },
         config: {
           test_size: 0.2,
-          random_state: 42,
+          random_state: 1,
           target_column: "species",
         },
         state: "idle",
@@ -165,7 +165,7 @@ export function createIrisWorkflowMock(): WorkflowGraph {
         position: { x: 520, y: 100 },
         config: {
           n_estimators: 100,
-          random_state: 42,
+          random_state: 1,
         },
         state: "idle",
       },

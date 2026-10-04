@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -21,7 +21,7 @@ const nodeTypes = {
 };
 
 function CanvasContent() {
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, setCenter } = useReactFlow();
   const graph = useWorkflowStore((s) => s.graph);
   const updateBlockPosition = useWorkflowStore((s) => s.updateBlockPosition);
   const addBlock = useWorkflowStore((s) => s.addBlock);
@@ -31,6 +31,20 @@ function CanvasContent() {
 
   const selectedBlockId = useUiStore((s) => s.selectedBlockId);
   const selectBlock = useUiStore((s) => s.selectBlock);
+  const focusTarget = useUiStore((s) => s.focusTarget);
+
+  // Smoothly center the canvas on a focused block (e.g. from validation error click)
+  useEffect(() => {
+    if (focusTarget && focusTarget.blockId) {
+      const block = graph.blocks[focusTarget.blockId];
+      if (block) {
+        setCenter(block.position.x + 110, block.position.y + 70, {
+          zoom: 1.15,
+          duration: 600,
+        });
+      }
+    }
+  }, [focusTarget, graph, setCenter]);
 
   // Connection feedback state
   const [connectionFeedback, setConnectionFeedback] = useState<{

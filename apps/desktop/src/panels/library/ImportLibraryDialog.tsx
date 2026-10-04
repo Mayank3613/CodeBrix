@@ -67,7 +67,17 @@ export default function ImportLibraryDialog({ isOpen, onClose }: ImportLibraryDi
     setFeedback(null);
 
     try {
-      const content = await readProjectFile(filePath.trim());
+      let content = "";
+      if (typeof window !== "undefined" && Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__)) {
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          content = await invoke<string>("read_library_manifest", { manifestPath: filePath.trim() });
+        } catch {
+          content = await readProjectFile(filePath.trim());
+        }
+      } else {
+        content = await readProjectFile(filePath.trim());
+      }
       setRawJson(content);
       setActiveTab("json");
       setFeedback({ message: "Loaded file content successfully. Review manifest below.", isError: false });

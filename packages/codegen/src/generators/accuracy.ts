@@ -16,6 +16,9 @@ export class AccuracyGenerator implements BlockCodeGenerator {
       lines.push(`# Block: ${block.label ?? "Accuracy Score"} (${block.id})`);
     }
 
+    const cleanId = block.id.replace(/[^a-zA-Z0-9_]/g, "_");
+    lines.push(`correct_count_${cleanId} = int(sum(1 for _t, _p in zip(${yTrue}, ${yPred}) if _t == _p))`);
+    lines.push(`incorrect_count_${cleanId} = int(len(${yTrue}) - correct_count_${cleanId})`);
     lines.push(`${scoreOut} = float(accuracy_score(${yTrue}, ${yPred}))`);
 
     if (options.includeProtocolHooks) {
@@ -24,14 +27,17 @@ export class AccuracyGenerator implements BlockCodeGenerator {
       lines.push(`    "title": "Model Accuracy",`);
       lines.push(`    "metrics": {`);
       lines.push(`        "accuracy": round(${scoreOut}, 4),`);
-      lines.push(`        "accuracy_pct": f"{round(${scoreOut} * 100, 2)}%"`);
+      lines.push(`        "accuracy_pct": f"{round(${scoreOut} * 100, 2)}%",`);
+      lines.push(`        "correct_predictions": correct_count_${cleanId},`);
+      lines.push(`        "incorrect_predictions": incorrect_count_${cleanId},`);
+      lines.push(`        "test_samples": int(len(${yTrue}))`);
       lines.push(`    },`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
       lines.push(`emit_json({`);
       lines.push(`    "type": "console",`);
       lines.push(`    "stream": "stdout",`);
-      lines.push(`    "text": f"[{block.id}] Model Accuracy: {${scoreOut}:.4f} ({${scoreOut} * 100:.2f}%)",`);
+      lines.push(`    "text": f"[${block.id}] Model Accuracy: {${scoreOut}:.4f} ({${scoreOut} * 100:.2f}%) — {correct_count_${cleanId}}/{len(${yTrue})} correct ({incorrect_count_${cleanId}} errors)",`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
     }

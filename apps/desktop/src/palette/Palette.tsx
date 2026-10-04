@@ -27,17 +27,41 @@ export default function Palette() {
   const warnings = useLibraryStore((s) => s.warnings);
   const dismissWarning = useLibraryStore((s) => s.dismissWarning);
 
+  // Dynamic library tabs derived from installed/imported libraries
+  const libraryTabs = useMemo(() => {
+    const list: Array<{ id: string; label: string }> = [{ id: "all", label: "All" }];
+    const labelMap: Record<string, string> = {
+      data: "Data",
+      core: "Core",
+      "scikit-learn": "ML",
+      visualization: "Viz",
+    };
+    for (const lib of libraries) {
+      if (lib.enabled !== false && !list.some((item) => item.id === lib.manifest.name)) {
+        list.push({
+          id: lib.manifest.name,
+          label: labelMap[lib.manifest.name] ?? lib.manifest.name,
+        });
+      }
+    }
+    return list;
+  }, [libraries]);
+
   // Filter blocks by search and library
   const blocks = useMemo(() => {
     let result = blockRegistry.search(search);
 
     if (selectedLibrary !== "all") {
+      const activeLib = libraries.find((l) => l.manifest.name === selectedLibrary);
       result = result.filter((block) => {
+        if (activeLib && activeLib.blockIds.length > 0 && activeLib.blockIds.includes(block.id)) {
+          return true;
+        }
         if (selectedLibrary === "core") return block.id.startsWith("core.") || block.category === "core";
         if (selectedLibrary === "data") return block.id.startsWith("data.") || block.category === "data";
         if (selectedLibrary === "scikit-learn") return block.id.startsWith("ml.") || block.id.startsWith("sklearn.");
         if (selectedLibrary === "visualization") return block.id.startsWith("eval.") || block.category === "visualization";
-        return true;
+        return block.tags?.includes(selectedLibrary) ?? false;
       });
     }
 
@@ -106,13 +130,7 @@ export default function Palette() {
 
           {/* Library Filter Pills */}
           <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[11px] scrollbar-none">
-            {[
-              { id: "all", label: "All" },
-              { id: "data", label: "Data" },
-              { id: "core", label: "Core" },
-              { id: "scikit-learn", label: "ML" },
-              { id: "visualization", label: "Viz" },
-            ].map((tab) => (
+            {libraryTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setSelectedLibrary(tab.id)}

@@ -33,6 +33,35 @@ pub struct PythonExitEvent {
 }
 
 fn get_python_executable() -> String {
+    let runtime_configs = [
+        ".python-runtime.json",
+        "../../.python-runtime.json",
+        "../../../.python-runtime.json",
+    ];
+    for cfg_path in &runtime_configs {
+        if let Ok(content) = std::fs::read_to_string(cfg_path) {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(p) = parsed.get("python").and_then(|v| v.as_str()) {
+                    let pb = std::path::PathBuf::from(p);
+                    if pb.exists() {
+                        return p.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(ref root) = find_workspace_root() {
+        let venv_unix = root.join(".venv/bin/python");
+        if venv_unix.exists() {
+            return venv_unix.to_string_lossy().to_string();
+        }
+        let venv_win = root.join(".venv/Scripts/python.exe");
+        if venv_win.exists() {
+            return venv_win.to_string_lossy().to_string();
+        }
+    }
+
     let venv_candidates = [
         ".venv/bin/python",
         "../../.venv/bin/python",
@@ -56,6 +85,34 @@ fn get_python_executable() -> String {
     }
 }
 
+fn find_workspace_root() -> Option<std::path::PathBuf> {
+    let candidates = [
+        ".",
+        "../..",
+        "../../..",
+    ];
+    for c in &candidates {
+        let p = std::path::PathBuf::from(c);
+        if p.join("pnpm-workspace.yaml").exists() || (p.join("package.json").exists() && p.join("libraries").exists()) {
+            if let Ok(canon) = p.canonicalize() {
+                return Some(canon);
+            }
+            return Some(p);
+        }
+    }
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(mut cur) = exe_path.parent() {
+            while let Some(parent) = cur.parent() {
+                if parent.join("libraries").exists() && (parent.join("pnpm-workspace.yaml").exists() || parent.join("package.json").exists()) {
+                    return Some(parent.to_path_buf());
+                }
+                cur = parent;
+            }
+        }
+    }
+    None
+}
+
 fn now_iso() -> String {
     match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
         Ok(d) => format!("ts:{}", d.as_millis()),
@@ -73,14 +130,22 @@ pub fn run_python_script(app: AppHandle, script: String, execution_id: String) -
         .map_err(|e| format!("Failed to write temporary python script: {}", e))?;
 
     let py_bin = get_python_executable();
+    let root_opt = find_workspace_root();
 
-    let mut child = Command::new(&py_bin)
-        .arg("-u")
+    let mut cmd = Command::new(&py_bin);
+    cmd.arg("-u")
         .arg(&script_file)
         .env("PYTHONUNBUFFERED", "1")
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(Stdio::piped());
+
+    if let Some(ref root) = root_opt {
+        cmd.current_dir(root);
+        let py_path_str = format!("{}:{}", root.display(), root.join("python").display());
+        cmd.env("PYTHONPATH", py_path_str);
+    }
+
+    let mut child = cmd.spawn()
         .map_err(|e| format!("Failed to spawn Python process ({}): {}", py_bin, e))?;
 
     let stdout = child.stdout.take();

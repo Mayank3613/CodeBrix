@@ -258,6 +258,38 @@ export function importLibraryManifest(
       return { success: false, error: errorMsg };
     }
 
+    const registeredBlockIds: string[] = [];
+    for (const bEntry of parsed.blocks) {
+      let blockId = bEntry;
+      if (bEntry.includes("/")) {
+        const parts = bEntry.split("/");
+        const namePart = parts[parts.length - 2] || parts[parts.length - 1].replace(/\.[^/.]+$/, "");
+        blockId = `${parsed.name}.${namePart}`;
+      }
+
+      if (!blockRegistry.has(blockId)) {
+        const blockName = blockId
+          .split(".")
+          .pop()!
+          .split("_")
+          .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+          .join(" ");
+
+        blockRegistry.register({
+          id: blockId,
+          name: blockName,
+          category: "custom",
+          version: parsed.version || "0.1.0",
+          description: `Custom block from library '${parsed.name}' (${bEntry})`,
+          inputs: [{ id: "in", name: "Input", type: "any", direction: "input" }],
+          outputs: [{ id: "out", name: "Output", type: "any", direction: "output" }],
+          configSchema: {},
+          tags: ["custom", parsed.name],
+        });
+      }
+      registeredBlockIds.push(blockId);
+    }
+
     const loaded: LoadedLibrary = {
       manifest: parsed,
       path: sourcePath,
@@ -265,7 +297,7 @@ export function importLibraryManifest(
       isBuiltIn: false,
       enabled: true,
       isValid: true,
-      blockIds: parsed.blocks,
+      blockIds: registeredBlockIds,
     };
 
     store.addLibrary(loaded);

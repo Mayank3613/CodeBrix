@@ -2,6 +2,8 @@ import { blockRegistry } from "./BlockRegistry";
 import {
   variablesBlockDefinition,
   conditionsBlockDefinition,
+  loopsBlockDefinition,
+  functionsBlockDefinition,
 } from "@codebrix/library-core";
 import {
   csvBlockDefinition,
@@ -13,15 +15,17 @@ import {
 import type { BlockDefinition } from "@codebrix/types";
 
 /**
- * Bootstrap default block definitions for Phase 1, Phase 2, and Phase 3.
+ * Bootstrap default block definitions for Phase 1, Phase 2, Phase 3, and Phase 4.
  * This populates the BlockRegistry with core blocks, data blocks, and ML blocks.
  */
 export function bootstrapDefaultBlocks(): void {
   if (blockRegistry.list().length > 0) return;
 
-  // Register real blocks from Developer 1's core library
+  // Register real blocks from Developer 1's core library (including Phase 4 stretch)
   blockRegistry.register(variablesBlockDefinition);
   blockRegistry.register(conditionsBlockDefinition);
+  blockRegistry.register(loopsBlockDefinition);
+  blockRegistry.register(functionsBlockDefinition);
 
   // Register real blocks from Developer 1's data library
   blockRegistry.register(csvBlockDefinition);

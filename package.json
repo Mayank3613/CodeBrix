@@ -13,9 +13,7 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "validate:iris": "tsx scripts/validate-iris.ts",
-    "generate:iris": "tsx scripts/generate-iris.ts",
-    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm --filter codebrix-appsdesktop test && pnpm --filter @codebrix/library-data test"
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm --filter codebrix-appsdesktop test && pnpm --filter @codebrix/library-core test && pnpm --filter @codebrix/library-data test"
   },
   "keywords": [],
   "author": "",
@@ -38,7 +36,7 @@
     "fast-glob": "^3.3.3",
     "fs-extra": "^11.3.6",
     "graphlib": "^2.1.8",
-    "hono": "4.12.30",
+    "hono": "^4.12.30",
     "lz-string": "^1.5.0",
     "nanoid": "^6.0.0",
     "node-cron": "^4.6.0",
