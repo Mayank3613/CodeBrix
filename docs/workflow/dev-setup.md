@@ -6,7 +6,7 @@
 
 ## 1. Prerequisites
 
-- **Node.js**: >= 20.0.0 (v24 LTS recommended, see `.nvmrc`)
+- **Node.js**: >= 22.13.0 (v22 Active LTS or v24, see `.nvmrc`)
 - **pnpm**: >= 10.0.0 (v11+ recommended)
 - **Rust & Cargo**: Latest stable toolchain (`rustup update stable`)
 - **Python**: 3.10+ (for runtime ML execution)
