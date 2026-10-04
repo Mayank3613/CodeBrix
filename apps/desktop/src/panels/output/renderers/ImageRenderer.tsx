@@ -1,5 +1,6 @@
 import type { ImageOutputMessage, OutputMessage } from "@codebrix/types";
 import type { RendererProps } from "../registry";
+import { useUiStore } from "../../../stores";
 
 export default function ImageRenderer({
   messages,
@@ -10,6 +11,17 @@ export default function ImageRenderer({
     (m): m is ImageOutputMessage =>
       m.type === "image" &&
       (m.format === "png" || m.format === "svg" || m.format === "base64")
+  );
+
+  const hasPlotOrMatrix = messages.some(
+    (m) =>
+      (m.type === "image" &&
+        (m.format === "plotly" ||
+          m.format === "confusion_matrix" ||
+          m.format === "feature_importance")) ||
+      (m.type === "metrics" &&
+        (Array.isArray(m.metrics["matrix"]) ||
+          Array.isArray(m.metrics["confusion_matrix"])))
   );
 
   if (imageOutputs.length === 0) {
@@ -28,6 +40,33 @@ export default function ImageRenderer({
       return (
         <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-900/60 text-center font-sans text-xs text-rose-300">
           Execution failed before images could be generated. Check Console tab for details.
+        </div>
+      );
+    }
+
+    if (hasPlotOrMatrix) {
+      return (
+        <div className="text-slate-400 text-center py-8 font-sans text-xs flex flex-col items-center gap-3">
+          <p className="text-slate-500">
+            No static raster image files (.png/.svg) were generated.
+          </p>
+          <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-300 flex items-center gap-4 shadow-lg">
+            <span className="text-xl">📊</span>
+            <div className="text-left">
+              <p className="text-xs font-semibold text-slate-200">
+                Interactive Plot Available
+              </p>
+              <p className="text-[11px] text-slate-400">
+                The Confusion Matrix heatmap visual is rendered under the <strong>Plots</strong> tab.
+              </p>
+            </div>
+            <button
+              onClick={() => useUiStore.getState().setActiveOutputTab("plots")}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs cursor-pointer transition-colors shadow-sm ml-2"
+            >
+              Open Plots Tab →
+            </button>
+          </div>
         </div>
       );
     }
