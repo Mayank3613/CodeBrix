@@ -80,7 +80,8 @@ function codebrixPythonRunnerPlugin(): Plugin {
               activeProcesses.set(executionId, child);
 
               const sendLines = (stream: "stdout" | "stderr", chunk: Buffer) => {
-                const lines = chunk.toString("utf-8").split(/\r?\n/);
+                const text = chunk.toString("utf-8");
+                const lines = text.split(/\r?\n/);
                 for (const line of lines) {
                   if (!line.trim()) continue;
                   res.write(
@@ -115,6 +116,7 @@ function codebrixPythonRunnerPlugin(): Plugin {
               });
 
               child.on("error", (err) => {
+                console.error("[PythonRunner] Child error:", err);
                 activeProcesses.delete(executionId);
                 res.write(
                   `data: ${JSON.stringify({
@@ -133,8 +135,8 @@ function codebrixPythonRunnerPlugin(): Plugin {
                 res.end();
               });
 
-              req.on("close", () => {
-                if (activeProcesses.has(executionId)) {
+              res.on("close", () => {
+                if (!res.writableEnded && activeProcesses.has(executionId)) {
                   child.kill();
                   activeProcesses.delete(executionId);
                 }
