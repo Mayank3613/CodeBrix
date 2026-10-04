@@ -4,9 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "setup" : "tsx scripts/setup.ts",
+    "setup": "tsx scripts/setup.ts",
     "dev": "pnpm --filter codebrix-appsdesktop tauri dev",
-    "build": "pnpm --filter codebrix-appsdesktop tauri build"
+    "build": "pnpm --filter codebrix-appsdesktop tauri build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "ci": "pnpm lint && pnpm typecheck && pnpm test"
   },
   "keywords": [],
   "author": "",

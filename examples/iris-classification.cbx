@@ -1,0 +1,139 @@
+{
+  "format": "codebrix-project",
+  "schemaVersion": "0.1.0",
+  "graph": {
+    "id": "wf-iris-mvp",
+    "name": "Iris Classification Acceptance Pipeline",
+    "version": "0.1.0",
+    "description": "End-to-end MVP reference pipeline for Iris dataset classification",
+    "blocks": {
+      "blk-csv": {
+        "id": "blk-csv",
+        "definitionId": "data.csv_loader",
+        "label": "Iris CSV Loader",
+        "position": { "x": 50, "y": 150 },
+        "config": {
+          "filePath": "tests/fixtures/iris.csv"
+        },
+        "state": "idle"
+      },
+      "blk-split": {
+        "id": "blk-split",
+        "definitionId": "ml.train_test_split",
+        "label": "Train/Test Split",
+        "position": { "x": 280, "y": 150 },
+        "config": {
+          "test_size": 0.2,
+          "random_state": 42,
+          "target_column": "species"
+        },
+        "state": "idle"
+      },
+      "blk-rf": {
+        "id": "blk-rf",
+        "definitionId": "ml.random_forest_classifier",
+        "label": "Random Forest",
+        "position": { "x": 520, "y": 100 },
+        "config": {
+          "n_estimators": 100,
+          "random_state": 42
+        },
+        "state": "idle"
+      },
+      "blk-predict": {
+        "id": "blk-predict",
+        "definitionId": "ml.predict",
+        "label": "Predict",
+        "position": { "x": 760, "y": 150 },
+        "config": {},
+        "state": "idle"
+      },
+      "blk-acc": {
+        "id": "blk-acc",
+        "definitionId": "eval.accuracy",
+        "label": "Accuracy Score",
+        "position": { "x": 1000, "y": 100 },
+        "config": {},
+        "state": "idle"
+      },
+      "blk-cm": {
+        "id": "blk-cm",
+        "definitionId": "eval.confusion_matrix",
+        "label": "Confusion Matrix",
+        "position": { "x": 1000, "y": 240 },
+        "config": {},
+        "state": "idle"
+      }
+    },
+    "connections": [
+      {
+        "id": "c1",
+        "sourceBlockId": "blk-csv",
+        "sourcePortId": "dataset_out",
+        "targetBlockId": "blk-split",
+        "targetPortId": "dataset_in"
+      },
+      {
+        "id": "c2",
+        "sourceBlockId": "blk-split",
+        "sourcePortId": "train_data_out",
+        "targetBlockId": "blk-rf",
+        "targetPortId": "train_data_in"
+      },
+      {
+        "id": "c3",
+        "sourceBlockId": "blk-rf",
+        "sourcePortId": "model_out",
+        "targetBlockId": "blk-predict",
+        "targetPortId": "model_in"
+      },
+      {
+        "id": "c4",
+        "sourceBlockId": "blk-split",
+        "sourcePortId": "test_data_out",
+        "targetBlockId": "blk-predict",
+        "targetPortId": "test_data_in"
+      },
+      {
+        "id": "c5",
+        "sourceBlockId": "blk-predict",
+        "sourcePortId": "predictions_out",
+        "targetBlockId": "blk-acc",
+        "targetPortId": "predictions_in"
+      },
+      {
+        "id": "c6",
+        "sourceBlockId": "blk-split",
+        "sourcePortId": "y_test_out",
+        "targetBlockId": "blk-acc",
+        "targetPortId": "ground_truth_in"
+      },
+      {
+        "id": "c7",
+        "sourceBlockId": "blk-predict",
+        "sourcePortId": "predictions_out",
+        "targetBlockId": "blk-cm",
+        "targetPortId": "predictions_in"
+      },
+      {
+        "id": "c8",
+        "sourceBlockId": "blk-split",
+        "sourcePortId": "y_test_out",
+        "targetBlockId": "blk-cm",
+        "targetPortId": "ground_truth_in"
+      }
+    ],
+    "metadata": {
+      "name": "Iris Classification",
+      "createdAt": "2026-10-04T00:00:00.000Z",
+      "updatedAt": "2026-10-04T00:00:00.000Z",
+      "codebrixVersion": "0.1.0",
+      "contractVersion": "0.1.0"
+    }
+  },
+  "canvasViewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  }
+}
