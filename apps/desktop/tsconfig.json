@@ -25,6 +25,8 @@
       "@codebrix/types": ["../../packages/types/src/index.ts"],
       "@codebrix/shared": ["../../packages/shared/src/index.ts"],
       "@codebrix/graph-engine": ["../../packages/graph-engine/src/index.ts"],
+      "@codebrix/codegen": ["../../packages/codegen/src/index.ts"],
+      "@codebrix/library-core": ["../../libraries/core/src/index.ts"],
       "@codebrix/library-data": ["../../libraries/data/src/index.ts"]
     }
   },

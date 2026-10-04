@@ -44,7 +44,7 @@ export class TrainTestSplitGenerator implements BlockCodeGenerator {
       lines.push(`emit_json({`);
       lines.push(`    "type": "console",`);
       lines.push(`    "stream": "stdout",`);
-      lines.push(`    "text": f"[{block.id}] Split completed: {len(${trainDataOut})} training rows, {len(${testDataOut})} test rows (test_size=${testSize})",`);
+      lines.push(`    "text": f"[${block.id}] Split completed: {len(${trainDataOut})} training rows, {len(${testDataOut})} test rows (test_size=${testSize})",`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
     }

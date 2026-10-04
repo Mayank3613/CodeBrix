@@ -20,6 +20,7 @@ import {
   restoreFromRecoverySnapshot,
 } from "../../project/autosave";
 import { readProjectFile } from "../../project/fileIo";
+import { PythonCodeGenerator } from "@codebrix/codegen";
 
 export default function Toolbar() {
   const [isValidating, setIsValidating] = useState(false);
@@ -176,25 +177,79 @@ export default function Toolbar() {
 
   const handleRun = async () => {
     try {
-      // Execute via Tauri Python process runner
-      const mockScript = `# Auto-generated CodeBrix workflow execution
-import sys
-import json
-import time
+      // Auto-expand output panel so user sees real-time execution
+      if (!useUiStore.getState().isOutputOpen) {
+        useUiStore.getState().toggleOutput();
+      }
 
-print(json.dumps({"event": "status", "payload": "running"}))
-time.sleep(0.3)
-print(json.dumps({"type": "console", "stream": "stdout", "text": "Loading dataset and executing pipeline..."}))
-time.sleep(0.4)
-print(json.dumps({"type": "metrics", "title": "Model Evaluation", "metrics": {"accuracy": 0.967, "loss": 0.033}}))
-time.sleep(0.3)
-print(json.dumps({"type": "console", "stream": "stdout", "text": "Execution completed successfully."}))
-print(json.dumps({"event": "done", "payload": {"exitCode": 0, "status": "success"}}))
-`;
-      await runPythonExecution(mockScript, graph.id);
+      // 1. Validate graph first
+      const val = await workflowService.validateGraph(graph);
+      setValidationResult(val);
+      if (!val.valid) {
+        return;
+      }
+
+      // 2. Generate execution plan and Python script
+      let pythonCode: string;
+      try {
+        const plan = await workflowService.getExecutionPlan(graph);
+        const codeGen = new PythonCodeGenerator();
+        const generated = codeGen.generate(graph, plan);
+        pythonCode = generated.code;
+      } catch (genErr) {
+        const errMsg = (genErr as Error)?.message || String(genErr);
+        const failOutput = {
+          type: "error" as const,
+          message: `[Code Generation Error] ${errMsg}`,
+          timestamp: new Date().toISOString(),
+        };
+        useExecutionStore.getState().resetExecution();
+        useExecutionStore.getState().setRunState("failed");
+        useExecutionStore.getState().addOutput(failOutput);
+        useExecutionStore.getState().setStatusMessage(`Codegen failed: ${errMsg}`);
+        useExecutionStore.getState().setLatestResult({
+          executionId: `failed_${Date.now()}`,
+          workflowId: graph.id,
+          status: "failed",
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          durationMs: 0,
+          exitCode: 1,
+          blockResults: {},
+          outputs: [failOutput],
+          error: { message: errMsg },
+        });
+        return;
+      }
+
+      // 3. Run execution process
+      await runPythonExecution(pythonCode, graph.id);
     } catch (err) {
       console.error("Execution error:", err);
     }
+  };
+
+  const handleImportProject = async () => {
+    const res = await openProjectFileDialog();
+    if (!res) return;
+
+    const parsed = parseCbxProject(res.content);
+    if (!parsed.success || !parsed.project) {
+      alert(`Failed to import .cbx project:\n${parsed.error}`);
+      return;
+    }
+
+    setGraph(parsed.project.graph);
+    setProjectName(parsed.project.graph.name || "Imported Project");
+    markDirty(true);
+    setValidationResult(null);
+    setRunState("idle");
+  };
+
+  const handleExportProject = async () => {
+    const json = serializeCbxProject(graph);
+    const filename = `${projectName.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-export.cbx`;
+    await saveProjectFileDialog(json, filename);
   };
 
   const handleStop = async () => {
@@ -319,6 +374,20 @@ print(json.dumps({"event": "done", "payload": {"exitCode": 0, "status": "success
               title="Save project as a new file"
             >
               Save As
+            </button>
+            <button
+              onClick={handleImportProject}
+              className="px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors"
+              title="Import .cbx project"
+            >
+              Import
+            </button>
+            <button
+              onClick={handleExportProject}
+              className="px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors"
+              title="Export project as .cbx"
+            >
+              Export
             </button>
           </div>
 

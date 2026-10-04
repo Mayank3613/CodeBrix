@@ -18,14 +18,31 @@ export class CsvLoaderGenerator implements BlockCodeGenerator {
       lines.push(`# Block: ${block.label ?? "CSV Loader"} (${block.id})`);
     }
 
-    lines.push(`csv_path_${block.id.replace(/[^a-zA-Z0-9_]/g, "_")} = ${filePathExpr}`);
-    lines.push(`${outputVar} = pd.read_csv(csv_path_${block.id.replace(/[^a-zA-Z0-9_]/g, "_")})`);
+    const cleanId = block.id.replace(/[^a-zA-Z0-9_]/g, "_");
+    lines.push(`csv_path_${cleanId} = ${filePathExpr}`);
+    lines.push(`if not os.path.isabs(str(csv_path_${cleanId})) and not os.path.exists(str(csv_path_${cleanId})):`);
+    lines.push(`    for _cand in [".", "../..", "../../..", os.getcwd()]:`);
+    lines.push(`        _cand_path = os.path.join(_cand, str(csv_path_${cleanId}))`);
+    lines.push(`        if os.path.exists(_cand_path):`);
+    lines.push(`            csv_path_${cleanId} = _cand_path`);
+    lines.push(`            break`);
+    lines.push(`${outputVar} = pd.read_csv(csv_path_${cleanId})`);
 
     if (options.includeProtocolHooks) {
       lines.push(`emit_json({`);
       lines.push(`    "type": "console",`);
       lines.push(`    "stream": "stdout",`);
-      lines.push(`    "text": f"[{block.id}] Loaded {len(${outputVar})} rows, {len(${outputVar}.columns)} columns from {csv_path_${block.id.replace(/[^a-zA-Z0-9_]/g, "_")}}",`);
+      lines.push(`    "text": f"[${block.id}] Loaded {len(${outputVar})} rows, {len(${outputVar}.columns)} columns from {csv_path_${cleanId}}",`);
+      lines.push(`    "timestamp": iso_now()`);
+      lines.push(`})`);
+      lines.push(`emit_json({`);
+      lines.push(`    "type": "table",`);
+      lines.push(`    "title": f"Preview: {csv_path_${cleanId}}",`);
+      lines.push(`    "blockId": ${JSON.stringify(block.id)},`);
+      lines.push(`    "columns": [str(c) for c in ${outputVar}.columns],`);
+      lines.push(`    "rows": ${outputVar}.head(10).values.tolist(),`);
+      lines.push(`    "totalRows": int(len(${outputVar})),`);
+      lines.push(`    "totalColumns": int(len(${outputVar}.columns)),`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
     }

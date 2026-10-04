@@ -1,4 +1,42 @@
 import { useExecutionStore, useUiStore, type OutputTab } from "../../stores";
+import type { MetricsOutputMessage, TableOutputMessage, ImageOutputMessage } from "@codebrix/types";
+
+function formatMetricValue(key: string, val: number | string | boolean): string {
+  if (typeof val === "boolean") return val ? "True" : "False";
+  if (typeof val === "string") return val;
+  if (typeof val === "number") {
+    const lower = key.toLowerCase();
+    if (lower.includes("pct") || lower.includes("percent")) {
+      return `${val}%`;
+    }
+    if (
+      lower.includes("sample") ||
+      lower.includes("count") ||
+      lower.includes("total") ||
+      Number.isInteger(val)
+    ) {
+      return val.toLocaleString();
+    }
+    if (
+      val >= 0 &&
+      val <= 1 &&
+      (lower.includes("acc") ||
+        lower.includes("score") ||
+        lower.includes("precision") ||
+        lower.includes("recall") ||
+        lower.includes("f1") ||
+        lower.includes("loss"))
+    ) {
+      return `${(val * 100).toFixed(2)}% (${val.toFixed(4)})`;
+    }
+    return val.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  }
+  return String(val);
+}
+
+function formatMetricKey(key: string): string {
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default function OutputPanel() {
   const isOutputOpen = useUiStore((s) => s.isOutputOpen);
@@ -8,6 +46,7 @@ export default function OutputPanel() {
 
   const runState = useExecutionStore((s) => s.runState);
   const result = useExecutionStore((s) => s.latestResult);
+  const statusMessage = useExecutionStore((s) => s.statusMessage);
 
   if (!isOutputOpen) {
     return (
@@ -28,43 +67,98 @@ export default function OutputPanel() {
 
   const liveOutputs = outputs.length > 0 ? outputs : result?.outputs || [];
   const consoleLogs = liveOutputs.filter((o) => o.type === "console" || o.type === "error");
-  const metricsOutputs = liveOutputs.filter((o) => o.type === "metrics");
+  const metricsOutputs = liveOutputs.filter((o): o is MetricsOutputMessage => o.type === "metrics");
+  const tableOutputs = liveOutputs.filter((o): o is TableOutputMessage => o.type === "table");
+  const latestTable = tableOutputs[tableOutputs.length - 1];
+  const imageOutputs = liveOutputs.filter((o): o is ImageOutputMessage => o.type === "image");
+
+  // Extract scalar metrics
+  const scalarMetrics: Array<{
+    key: string;
+    value: number | string | boolean;
+    title?: string;
+    blockId?: string;
+  }> = [];
+
+  for (const msg of metricsOutputs) {
+    for (const [k, v] of Object.entries(msg.metrics)) {
+      if (Array.isArray(v) || (typeof v === "object" && v !== null)) continue;
+      if (k === "accuracy_pct" && "accuracy" in msg.metrics) continue;
+      scalarMetrics.push({
+        key: k,
+        value: v,
+        title: msg.title,
+        blockId: msg.blockId,
+      });
+    }
+  }
+
+  // Extract confusion matrix if present
+  const matrixMsg = metricsOutputs.find(
+    (m) => Array.isArray(m.metrics["matrix"]) || Array.isArray(m.metrics["confusion_matrix"])
+  );
+  const rawMatrix = matrixMsg
+    ? (((matrixMsg.metrics["matrix"] || matrixMsg.metrics["confusion_matrix"]) as unknown) as unknown[][])
+    : null;
 
   return (
-    <footer className="h-60 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex flex-col shrink-0 overflow-hidden select-none">
+    <footer className="h-64 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex flex-col shrink-0 overflow-hidden select-none">
       {/* Header bar */}
       <div className="h-9 px-4 bg-slate-950/70 border-b border-slate-800/80 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-1">
-          {(["metrics", "console", "table", "visuals"] as OutputTab[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1.5 text-xs font-medium capitalize rounded-t-md transition-all ${activeTab === tab
-                  ? "bg-slate-900 text-indigo-300 border-t-2 border-indigo-400"
-                  : "text-slate-400 hover:text-slate-200"
+          {(["metrics", "console", "table", "visuals"] as OutputTab[]).map((tab) => {
+            const countBadge =
+              tab === "console" && consoleLogs.length > 0
+                ? ` (${consoleLogs.length})`
+                : tab === "metrics" && scalarMetrics.length > 0
+                ? ` (${scalarMetrics.length})`
+                : tab === "table" && latestTable
+                ? " (1)"
+                : tab === "visuals" && (rawMatrix || imageOutputs.length > 0)
+                ? ` (${(rawMatrix ? 1 : 0) + imageOutputs.length})`
+                : "";
+
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-1.5 text-xs font-medium capitalize rounded-t-md transition-all ${
+                  activeTab === tab
+                    ? "bg-slate-900 text-indigo-300 border-t-2 border-indigo-400"
+                    : "text-slate-400 hover:text-slate-200"
                 }`}
-            >
-              {tab}
-            </button>
-          ))}
+              >
+                {tab}
+                {countBadge && (
+                  <span className="text-[10px] text-slate-500 font-normal ml-0.5">
+                    {countBadge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex items-center gap-4 text-xs font-mono">
           {runState === "running" ? (
             <span className="text-amber-400 flex items-center gap-1.5 animate-pulse">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
-              Running execution...
+              {statusMessage || "Executing Python subprocess..."}
             </span>
           ) : result ? (
             <div className="flex items-center gap-3 text-slate-400">
-              <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                ✓ {result.status}
+              <span
+                className={`font-semibold flex items-center gap-1 ${
+                  result.status === "success" ? "text-emerald-400" : "text-rose-400"
+                }`}
+              >
+                {result.status === "success" ? "✓" : "✗"} {result.status}
               </span>
               <span>{result.durationMs}ms</span>
-              <span>exit: {result.exitCode}</span>
+              {result.exitCode !== undefined && <span>exit: {result.exitCode}</span>}
             </div>
           ) : (
-            <span className="text-slate-500 italic">No runs yet</span>
+            <span className="text-slate-500 italic">No runs executed yet</span>
           )}
 
           <button
@@ -79,52 +173,81 @@ export default function OutputPanel() {
 
       {/* Content Area */}
       <div className="flex-1 p-4 overflow-auto font-mono text-xs">
+        {/* METRICS TAB */}
         {activeTab === "metrics" && (
           <div className="space-y-3">
-            {metricsOutputs.length > 0 ? (
-              <div className="grid grid-cols-4 gap-4">
-                {metricsOutputs.map((msg, idx) => {
-                  if (msg.type !== "metrics") return null;
-                  return Object.entries(msg.metrics).map(([k, v]) => (
+            {scalarMetrics.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {scalarMetrics.map((item, idx) => {
+                  const isErrorKey = item.key.includes("incorrect") || item.key.includes("error");
+                  const isCorrectKey = item.key.includes("correct") && !isErrorKey;
+                  const numVal = typeof item.value === "number" ? item.value : null;
+                  const hasErrors = isErrorKey && numVal !== null && numVal > 0;
+                  const cardBorder =
+                    hasErrors
+                      ? "border-rose-800/60 bg-gradient-to-br from-rose-950/30 to-slate-900"
+                      : isCorrectKey
+                      ? "border-emerald-800/50 bg-gradient-to-br from-emerald-950/20 to-slate-900"
+                      : "border-indigo-900/50 bg-gradient-to-br from-indigo-950/40 to-slate-900";
+
+                  const valColor =
+                    hasErrors
+                      ? "text-rose-400"
+                      : isCorrectKey
+                      ? "text-emerald-400"
+                      : "text-white";
+
+                  return (
                     <div
-                      key={`${idx}-${k}`}
-                      className="p-4 rounded-xl bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-900/50 shadow-lg"
+                      key={`${idx}-${item.key}`}
+                      className={`p-4 rounded-xl border shadow-lg ${cardBorder}`}
                     >
                       <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-sans">
-                        {k}
+                        {formatMetricKey(item.key)}
                       </span>
-                      <span className="text-2xl font-bold text-white mt-1 block">
-                        {typeof v === "number" ? `${(v * 100).toFixed(1)}%` : String(v)}
+                      <span className={`text-2xl font-bold mt-1 block tracking-tight ${valColor}`}>
+                        {formatMetricValue(item.key, item.value)}
                       </span>
-                      <span className="text-[10px] text-emerald-400 font-sans mt-1 block">
-                        Model: Random Forest Classifier
+                      <span className="text-[10px] text-slate-400 font-sans mt-1 block truncate">
+                        {item.title || "Evaluation Metric"}
+                        {item.blockId ? ` • [${item.blockId}]` : ""}
                       </span>
                     </div>
-                  ));
+                  );
                 })}
-                <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800">
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-sans">
-                    F1-Score
-                  </span>
-                  <span className="text-2xl font-bold text-slate-200 mt-1 block">0.966</span>
-                  <span className="text-[10px] text-slate-500 font-sans mt-1 block">Weighted avg</span>
-                </div>
-                <div className="p-4 rounded-xl bg-slate-950/40 border border-slate-800">
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider block font-sans">
-                    Test Samples
-                  </span>
-                  <span className="text-2xl font-bold text-slate-200 mt-1 block">30</span>
-                  <span className="text-[10px] text-slate-500 font-sans mt-1 block">20% test split</span>
-                </div>
+              </div>
+            ) : result?.status === "failed" ? (
+              <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-900/60 text-center space-y-2">
+                <p className="text-sm font-semibold text-rose-300">
+                  Execution Failed {result.exitCode !== undefined ? `(exit code ${result.exitCode})` : ""}
+                </p>
+                <p className="text-xs text-slate-400 font-sans">
+                  {result.error?.message || "An error occurred during Python subprocess execution."}
+                </p>
+                <button
+                  onClick={() => setActiveTab("console")}
+                  className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-xs font-sans transition-all cursor-pointer"
+                >
+                  View Console & Traceback
+                </button>
+              </div>
+            ) : runState === "running" ? (
+              <div className="text-amber-400 text-center py-8 flex flex-col items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-amber-400 animate-ping" />
+                <span className="font-sans text-xs">
+                  Running Python workflow subprocess... Awaiting metrics emission.
+                </span>
               </div>
             ) : (
-              <div className="text-slate-500 text-center py-6">
-                Click <span className="text-emerald-400 font-semibold font-sans">"Run Pipeline"</span> to execute the workflow.
+              <div className="text-slate-500 text-center py-8 font-sans">
+                No metrics computed yet. Click{" "}
+                <span className="text-emerald-400 font-semibold">"Run Pipeline"</span> to execute the Python workflow.
               </div>
             )}
           </div>
         )}
 
+        {/* CONSOLE TAB */}
         {activeTab === "console" && (
           <div className="space-y-2 bg-slate-950/80 p-3 rounded-lg border border-slate-800 text-slate-300">
             <div className="flex items-center justify-between pb-1 border-b border-slate-800/60 text-[10px] text-slate-500 font-sans">
@@ -143,17 +266,28 @@ export default function OutputPanel() {
                 {consoleLogs.map((log, i) => {
                   if (log.type === "error") {
                     return (
-                      <div key={i} className="flex gap-2 text-rose-400 bg-rose-950/30 p-1.5 rounded border border-rose-900/40">
-                        <span className="text-slate-600 select-none">[{log.timestamp.slice(11, 19)}]</span>
-                        <span className="font-semibold">{log.message}</span>
+                      <div
+                        key={i}
+                        className="flex gap-2 text-rose-400 bg-rose-950/30 p-1.5 rounded border border-rose-900/40"
+                      >
+                        <span className="text-slate-600 select-none">
+                          [{log.timestamp.slice(11, 19)}]
+                        </span>
+                        <span className="font-semibold whitespace-pre-wrap">{log.message}</span>
                       </div>
                     );
                   }
                   if (log.type === "console") {
                     return (
                       <div key={i} className="flex gap-2">
-                        <span className="text-slate-600 select-none">[{log.timestamp.slice(11, 19)}]</span>
-                        <span className={log.stream === "stderr" ? "text-rose-400" : "text-emerald-300"}>
+                        <span className="text-slate-600 select-none">
+                          [{log.timestamp.slice(11, 19)}]
+                        </span>
+                        <span
+                          className={`whitespace-pre-wrap ${
+                            log.stream === "stderr" ? "text-rose-400" : "text-emerald-300"
+                          }`}
+                        >
                           {log.text}
                         </span>
                       </div>
@@ -161,72 +295,209 @@ export default function OutputPanel() {
                   }
                   return null;
                 })}
+                {runState === "running" && (
+                  <div className="flex items-center gap-2 text-amber-400 text-[11px] pt-1 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    <span>Streaming live Python output...</span>
+                  </div>
+                )}
+              </div>
+            ) : runState === "running" ? (
+              <div className="text-amber-400 italic py-2 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span>Initializing Python subprocess... streaming logs will appear here.</span>
               </div>
             ) : (
-              <div className="text-slate-500 italic py-2">No console logs available. Click "Run Pipeline" to execute.</div>
+              <div className="text-slate-500 italic py-2">
+                No console logs available. Click "Run Pipeline" to execute.
+              </div>
             )}
           </div>
         )}
 
+        {/* TABLE TAB */}
         {activeTab === "table" && (
-          <div className="rounded-lg border border-slate-800 overflow-hidden bg-slate-950/80">
-            <div className="px-3 py-2 bg-slate-900/80 border-b border-slate-800 text-xs font-sans text-slate-300 flex justify-between">
-              <span>Preview: tests/fixtures/iris.csv</span>
-              <span className="text-slate-500">150 rows × 5 columns</span>
-            </div>
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/60 border-b border-slate-800 text-[11px] text-slate-400">
-                  <th className="p-2">#</th>
-                  <th className="p-2">sepal_length</th>
-                  <th className="p-2">sepal_width</th>
-                  <th className="p-2">petal_length</th>
-                  <th className="p-2">petal_width</th>
-                  <th className="p-2">species</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 text-slate-300">
-                {[
-                  [1, 5.1, 3.5, 1.4, 0.2, "setosa"],
-                  [2, 4.9, 3.0, 1.4, 0.2, "setosa"],
-                  [3, 4.7, 3.2, 1.3, 0.2, "setosa"],
-                  [4, 7.0, 3.2, 4.7, 1.4, "versicolor"],
-                  [5, 6.3, 3.3, 6.0, 2.5, "virginica"],
-                ].map((row, i) => (
-                  <tr key={i} className="hover:bg-slate-800/40">
-                    {row.map((val, j) => (
-                      <td key={j} className="p-2 text-slate-300">
-                        {val}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div>
+            {latestTable ? (
+              <div className="rounded-lg border border-slate-800 overflow-hidden bg-slate-950/80">
+                <div className="px-3 py-2 bg-slate-900/80 border-b border-slate-800 text-xs font-sans text-slate-300 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{latestTable.title || "Dataset Preview"}</span>
+                    {latestTable.blockId && (
+                      <span className="px-1.5 py-0.5 text-[10px] rounded bg-slate-800 text-slate-400 font-mono">
+                        {latestTable.blockId}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-slate-500 font-mono text-[11px]">
+                    {latestTable.totalRows ?? latestTable.rows.length} rows ×{" "}
+                    {latestTable.totalColumns ?? latestTable.columns.length} columns (showing{" "}
+                    {latestTable.rows.length} preview rows)
+                  </span>
+                </div>
+                <div className="overflow-x-auto max-h-48">
+                  <table className="w-full text-left border-collapse font-mono text-xs">
+                    <thead>
+                      <tr className="bg-slate-900/90 border-b border-slate-800 text-[11px] text-slate-400 sticky top-0">
+                        <th className="p-2 border-r border-slate-800/60 w-10 text-center text-slate-500">
+                          #
+                        </th>
+                        {latestTable.columns.map((col, idx) => (
+                          <th
+                            key={idx}
+                            className="p-2 border-r border-slate-800/40 font-semibold text-slate-300 whitespace-nowrap"
+                          >
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                      {latestTable.rows.map((row, rowIdx) => (
+                        <tr key={rowIdx} className="hover:bg-slate-800/40 transition-colors">
+                          <td className="p-2 border-r border-slate-800/60 text-center text-slate-500 select-none">
+                            {rowIdx + 1}
+                          </td>
+                          {row.map((val, cellIdx) => (
+                            <td
+                              key={cellIdx}
+                              className="p-2 border-r border-slate-800/40 text-slate-300 whitespace-nowrap"
+                            >
+                              {val === null || val === undefined ? (
+                                <span className="text-slate-600 italic">null</span>
+                              ) : typeof val === "number" ? (
+                                Number.isInteger(val) ? (
+                                  val
+                                ) : (
+                                  val.toFixed(3)
+                                )
+                              ) : (
+                                String(val)
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : runState === "running" ? (
+              <div className="text-amber-400 text-center py-8 flex flex-col items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-amber-400 animate-ping" />
+                <span className="font-sans text-xs">
+                  Loading dataset from Python process... preview will render once loaded.
+                </span>
+              </div>
+            ) : result?.status === "failed" ? (
+              <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-900/60 text-center font-sans text-xs text-rose-300">
+                Execution failed before dataset could be loaded. Check Console tab for details.
+              </div>
+            ) : (
+              <div className="text-slate-500 text-center py-8 font-sans">
+                No tabular dataset loaded yet. Connect a CSV Loader or dataset block and click{" "}
+                <span className="text-emerald-400 font-semibold">"Run Pipeline"</span>.
+              </div>
+            )}
           </div>
         )}
 
+        {/* VISUALS TAB */}
         {activeTab === "visuals" && (
-          <div className="flex items-center gap-8 justify-center py-2">
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 text-center">
-              <span className="text-xs font-semibold text-slate-300 block mb-3 font-sans">
-                Confusion Matrix (Iris Evaluation)
-              </span>
-              <div className="grid grid-cols-3 gap-2 w-48 mx-auto font-mono text-xs">
-                <div className="p-3 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">10</div>
-                <div className="p-3 rounded bg-slate-800/40 text-slate-500">0</div>
-                <div className="p-3 rounded bg-slate-800/40 text-slate-500">0</div>
-                <div className="p-3 rounded bg-slate-800/40 text-slate-500">0</div>
-                <div className="p-3 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">9</div>
-                <div className="p-3 rounded bg-rose-500/20 text-rose-300">1</div>
-                <div className="p-3 rounded bg-slate-800/40 text-slate-500">0</div>
-                <div className="p-3 rounded bg-slate-800/40 text-slate-500">0</div>
-                <div className="p-3 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">10</div>
+          <div>
+            {rawMatrix && rawMatrix.length > 0 ? (
+              <div className="flex flex-col items-center justify-center py-2 space-y-3">
+                <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 text-center shadow-lg inline-block">
+                  <div className="flex items-center justify-between gap-6 mb-3 border-b border-slate-800/80 pb-2">
+                    <span className="text-xs font-semibold text-slate-200 font-sans">
+                      {matrixMsg?.title || "Confusion Matrix (Live Execution)"}
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-mono">
+                      {rawMatrix.length} × {(rawMatrix[0] as unknown[])?.length || 0} classes • Real Python Output
+                    </span>
+                  </div>
+
+                  <div
+                    className="grid gap-2 mx-auto font-mono text-xs"
+                    style={{
+                      gridTemplateColumns: `repeat(${(rawMatrix[0] as unknown[])?.length || 1}, minmax(48px, 1fr))`,
+                    }}
+                  >
+                    {rawMatrix.map((row, rIdx) =>
+                      (row as unknown[]).map((val, cIdx) => {
+                        const num = Number(val) || 0;
+                        const isDiagonal = rIdx === cIdx;
+                        const bgClass =
+                          isDiagonal && num > 0
+                            ? "bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40 shadow-sm"
+                            : num > 0
+                            ? "bg-rose-500/20 text-rose-300 font-bold border border-rose-500/40"
+                            : "bg-slate-900/60 text-slate-500 border border-slate-800/50";
+
+                        return (
+                          <div
+                            key={`${rIdx}-${cIdx}`}
+                            className={`p-3 rounded flex flex-col items-center justify-center transition-all ${bgClass}`}
+                            title={`Actual class ${rIdx}, Predicted class ${cIdx}: ${num} samples`}
+                          >
+                            <span className="text-base">{num}</span>
+                            <span className="text-[9px] opacity-60">[{rIdx},{cIdx}]</span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-center gap-6 text-[10px] text-slate-500 mt-3 font-sans">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded bg-emerald-500/40 border border-emerald-500/60" />
+                      Correct Predictions (Diagonal)
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded bg-rose-500/40 border border-rose-500/60" />
+                      Misclassifications
+                    </span>
+                  </div>
+                </div>
               </div>
-              <span className="text-[10px] text-slate-500 block mt-2 font-sans">
-                setosa / versicolor / virginica
-              </span>
-            </div>
+            ) : imageOutputs.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4">
+                {imageOutputs.map((img, idx) => (
+                  <div key={idx} className="p-3 rounded-lg border border-slate-800 bg-slate-950/80">
+                    {img.title && (
+                      <span className="text-xs font-semibold text-slate-300 block mb-2 font-sans">
+                        {img.title}
+                      </span>
+                    )}
+                    {img.format === "svg" ? (
+                      <div dangerouslySetInnerHTML={{ __html: img.data }} />
+                    ) : (
+                      <img
+                        src={img.data.startsWith("data:") ? img.data : `data:image/png;base64,${img.data}`}
+                        alt={img.title || "Execution Visual"}
+                        className="max-h-48 mx-auto rounded"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : runState === "running" ? (
+              <div className="text-amber-400 text-center py-8 flex flex-col items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-amber-400 animate-ping" />
+                <span className="font-sans text-xs">
+                  Generating model evaluation visuals in Python subprocess...
+                </span>
+              </div>
+            ) : result?.status === "failed" ? (
+              <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-900/60 text-center font-sans text-xs text-rose-300">
+                Execution failed before visuals could be generated. Check Console tab for details.
+              </div>
+            ) : (
+              <div className="text-slate-500 text-center py-8 font-sans">
+                No visual metrics or confusion matrix generated yet. Add a Confusion Matrix block and click{" "}
+                <span className="text-emerald-400 font-semibold">"Run Pipeline"</span>.
+              </div>
+            )}
           </div>
         )}
       </div>

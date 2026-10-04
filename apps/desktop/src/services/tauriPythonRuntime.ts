@@ -9,6 +9,13 @@ function isTauri(): boolean {
   return typeof window !== "undefined" && Boolean((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__);
 }
 
+function getEndpointUrl(path: string): string {
+  if (typeof window !== "undefined" && window.location?.origin && !window.location.origin.includes("null")) {
+    return path;
+  }
+  return `http://127.0.0.1:1420${path}`;
+}
+
 interface PythonOutputPayload {
   execution_id: string;
   line: string;
@@ -63,8 +70,27 @@ export async function runPythonExecution(
       listen<PythonOutputPayload>("python-output", (event) => {
         if (event.payload.execution_id !== executionId) return;
 
+        // Check for block lifecycle events
+        try {
+          const rawObj = JSON.parse(event.payload.line) as Record<string, unknown>;
+          const payload = rawObj["payload"] as { blockId?: string } | undefined;
+          if (rawObj["event"] === "block_start" && payload?.blockId) {
+            useExecutionStore.getState().setBlockStatus(payload.blockId, "running");
+            useExecutionStore.getState().setActiveBlockId(payload.blockId);
+          } else if (rawObj["event"] === "block_done" && payload?.blockId) {
+            useExecutionStore.getState().setBlockStatus(payload.blockId, "success");
+          } else if (rawObj["event"] === "block_error" && payload?.blockId) {
+            useExecutionStore.getState().setBlockStatus(payload.blockId, "failed");
+          }
+        } catch {
+          // not json
+        }
+
         const parsed = parsePythonOutputJsonLine(event.payload.line);
         if (parsed) {
+          if (event.payload.stream === "stderr" && parsed.type === "console") {
+            parsed.stream = "stderr";
+          }
           outputsAccumulator.push(parsed);
           useExecutionStore.getState().addOutput(parsed);
         }
@@ -93,6 +119,7 @@ export async function runPythonExecution(
           startedAt,
           completedAt: endedAt,
           durationMs,
+          exitCode: event.payload.exit_code,
           blockResults: {},
           outputs: outputsAccumulator,
           error: success
@@ -102,6 +129,9 @@ export async function runPythonExecution(
 
         useExecutionStore.getState().setRunState(success ? "success" : "failed");
         useExecutionStore.getState().setLatestResult(result);
+        if (!success) {
+          useExecutionStore.getState().setStatusMessage(`Execution failed with exit code ${event.payload.exit_code}`);
+        }
         resolve(result);
       }).then((un) => unlisteners.push(un));
 
@@ -127,6 +157,7 @@ export async function runPythonExecution(
           startedAt,
           completedAt: new Date().toISOString(),
           durationMs: 0,
+          exitCode: 1,
           blockResults: {},
           outputs: [failOutput],
           error: { message: errMsg },
@@ -137,83 +168,133 @@ export async function runPythonExecution(
     });
   }
 
-  // Browser simulated fallback runner
+  // Web dev mode: execute real Python via Vite dev server SSE endpoint
   return new Promise<ExecutionResult>((resolve) => {
     const outputsAccumulator: OutputMessage[] = [];
 
-    const append = (msg: OutputMessage) => {
-      outputsAccumulator.push(msg);
-      useExecutionStore.getState().addOutput(msg);
-    };
-
-    setTimeout(() => {
-      store.setStatusMessage("Loading dataset into pandas DataFrame...");
-      append({
-        type: "console",
-        stream: "stdout",
-        text: "[data.csv_loader] Loaded dataset from iris.csv: (150 rows, 5 columns)",
+    const handleFailure = (errMsg: string) => {
+      const failOutput: OutputMessage = {
+        type: "error",
+        message: `[Process Launch Error] ${errMsg}`,
         timestamp: new Date().toISOString(),
-      });
-    }, 200);
+      };
+      useExecutionStore.getState().addOutput(failOutput);
+      useExecutionStore.getState().setRunState("failed");
+      useExecutionStore.getState().setStatusMessage(`Execution failed: ${errMsg}`);
 
-    setTimeout(() => {
-      store.setStatusMessage("Preprocessing: Train/Test split 80/20...");
-      append({
-        type: "console",
-        stream: "stdout",
-        text: "[ml.train_test_split] Split completed: Train (120 rows), Test (30 rows)",
-        timestamp: new Date().toISOString(),
-      });
-    }, 600);
-
-    setTimeout(() => {
-      store.setStatusMessage("Training Random Forest Classifier (100 estimators)...");
-      append({
-        type: "console",
-        stream: "stdout",
-        text: "[ml.random_forest_classifier] Fitting 100 decision trees... done in 0.12s",
-        timestamp: new Date().toISOString(),
-      });
-    }, 1100);
-
-    setTimeout(() => {
-      store.setStatusMessage("Evaluating model predictions...");
-      append({
-        type: "metrics",
-        title: "Test Set Accuracy",
-        metrics: {
-          accuracy: 0.967,
-          precision_macro: 0.969,
-          recall_macro: 0.967,
-          f1_macro: 0.967,
-        },
-        timestamp: new Date().toISOString(),
-      });
-
-      append({
-        type: "console",
-        stream: "stdout",
-        text: "Pipeline execution finished successfully with accuracy score: 0.967",
-        timestamp: new Date().toISOString(),
-      });
-
-      const endedAt = new Date().toISOString();
-      const result: ExecutionResult = {
+      const failResult: ExecutionResult = {
         executionId,
         workflowId,
-        status: "success",
+        status: "failed",
         startedAt,
-        completedAt: endedAt,
-        durationMs: 1600,
+        completedAt: new Date().toISOString(),
+        durationMs: 0,
+        exitCode: 1,
         blockResults: {},
-        outputs: outputsAccumulator,
+        outputs: [failOutput],
+        error: { message: errMsg },
       };
+      useExecutionStore.getState().setLatestResult(failResult);
+      resolve(failResult);
+    };
 
-      store.setRunState("success");
-      store.setStatusMessage("Execution completed successfully (0.967 accuracy)");
-      store.setLatestResult(result);
-      resolve(result);
-    }, 1600);
+    fetch(getEndpointUrl("/api/python/run"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ script, executionId }),
+    })
+      .then(async (res) => {
+        if (!res.ok || !res.body) {
+          throw new Error(`Server returned HTTP ${res.status}: ${res.statusText}`);
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let exitCode = 0;
+        let success = true;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() ?? "";
+
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const evt = JSON.parse(line.slice(6)) as Record<string, unknown>;
+              if (evt["type"] === "status" && typeof evt["message"] === "string") {
+                useExecutionStore.getState().setStatusMessage(evt["message"]);
+              } else if (evt["type"] === "output" && typeof evt["line"] === "string") {
+                const lineText = evt["line"];
+                const stream = evt["stream"] === "stderr" ? "stderr" : "stdout";
+
+                try {
+                  const rawObj = JSON.parse(lineText) as Record<string, unknown>;
+                  const payload = rawObj["payload"] as { blockId?: string } | undefined;
+                  if (rawObj["event"] === "block_start" && payload?.blockId) {
+                    useExecutionStore.getState().setBlockStatus(payload.blockId, "running");
+                    useExecutionStore.getState().setActiveBlockId(payload.blockId);
+                  } else if (rawObj["event"] === "block_done" && payload?.blockId) {
+                    useExecutionStore.getState().setBlockStatus(payload.blockId, "success");
+                  } else if (rawObj["event"] === "block_error" && payload?.blockId) {
+                    useExecutionStore.getState().setBlockStatus(payload.blockId, "failed");
+                  }
+                } catch {
+                  // not json
+                }
+
+                const parsed = parsePythonOutputJsonLine(lineText);
+                if (parsed) {
+                  if (stream === "stderr" && parsed.type === "console") {
+                    parsed.stream = "stderr";
+                  }
+                  outputsAccumulator.push(parsed);
+                  useExecutionStore.getState().addOutput(parsed);
+                }
+              } else if (evt["type"] === "exit") {
+                exitCode = typeof evt["exit_code"] === "number" ? evt["exit_code"] : 0;
+                success = Boolean(evt["success"]);
+              }
+            } catch {
+              // ignore malformed SSE
+            }
+          }
+        }
+
+        const endedAt = new Date().toISOString();
+        const durationMs =
+          new Date(endedAt).getTime() - new Date(startedAt).getTime();
+
+        const result: ExecutionResult = {
+          executionId,
+          workflowId,
+          status: success ? "success" : "failed",
+          startedAt,
+          completedAt: endedAt,
+          durationMs,
+          exitCode,
+          blockResults: {},
+          outputs: outputsAccumulator,
+          error: success
+            ? undefined
+            : { message: `Process terminated with exit code ${exitCode}` },
+        };
+
+        useExecutionStore.getState().setRunState(success ? "success" : "failed");
+        useExecutionStore.getState().setLatestResult(result);
+        if (!success) {
+          useExecutionStore.getState().setStatusMessage(`Execution failed with exit code ${exitCode}`);
+        }
+        resolve(result);
+      })
+      .catch((err) => {
+        handleFailure((err as Error).message || String(err));
+      });
   });
 }
 
@@ -231,6 +312,16 @@ export async function stopPythonExecution(): Promise<void> {
       await invoke<void>("stop_python_script", { executionId: eid });
     } catch (err) {
       console.warn("Error calling stop_python_script:", err);
+    }
+  } else {
+    try {
+      await fetch(getEndpointUrl("/api/python/stop"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ executionId: eid }),
+      });
+    } catch (err) {
+      console.warn("Error calling /api/python/stop:", err);
     }
   }
 
