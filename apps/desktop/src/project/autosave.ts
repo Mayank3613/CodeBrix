@@ -1,7 +1,7 @@
 import { serializeCbxProject, parseCbxProject } from "./projectManager";
 import { useWorkflowStore } from "../stores/workflowStore";
 import { useProjectStore } from "../stores/projectStore";
-import type { CbxProjectFile } from "@codebrix/types";
+import type { CbxProjectFile, WorkflowGraph } from "@codebrix/types";
 import {
   STORAGE_KEYS,
   getStorageItem,
@@ -65,8 +65,8 @@ export function getRecoverySnapshot(): AutosaveSnapshot | null {
  */
 export function restoreFromRecoverySnapshot(snapshot: AutosaveSnapshot): CbxProjectFile {
   const result = parseCbxProject(snapshot.rawJson);
-  if (!result.success) {
-    throw new Error(`Failed to parse recovery snapshot: ${result.error}`);
+  if (!result.success || !result.project) {
+    throw new Error(`Failed to parse recovery snapshot: ${result.error || "Corrupted project"}`);
   }
   const project = result.project;
   useWorkflowStore.getState().setGraph(project.graph);

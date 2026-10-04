@@ -95,7 +95,9 @@ export async function runPythonExecution(
           durationMs,
           blockResults: {},
           outputs: outputsAccumulator,
-          error: success ? undefined : `Process terminated with exit code ${event.payload.exit_code}`,
+          error: success
+            ? undefined
+            : { message: `Process terminated with exit code ${event.payload.exit_code}` },
         };
 
         useExecutionStore.getState().setRunState(success ? "success" : "failed");
@@ -112,8 +114,7 @@ export async function runPythonExecution(
         const errMsg = String(err);
         const failOutput: OutputMessage = {
           type: "error",
-          title: "Process Launch Error",
-          message: errMsg,
+          message: `[Process Launch Error] ${errMsg}`,
           timestamp: new Date().toISOString(),
         };
         useExecutionStore.getState().addOutput(failOutput);
@@ -128,7 +129,7 @@ export async function runPythonExecution(
           durationMs: 0,
           blockResults: {},
           outputs: [failOutput],
-          error: errMsg,
+          error: { message: errMsg },
         };
         useExecutionStore.getState().setLatestResult(failResult);
         resolve(failResult);
@@ -237,8 +238,7 @@ export async function stopPythonExecution(): Promise<void> {
   store.setStatusMessage("Execution aborted by user");
   store.addOutput({
     type: "error",
-    title: "Process Aborted",
-    message: "Execution process stopped by user.",
+    message: "[Process Aborted] Execution process stopped by user.",
     timestamp: new Date().toISOString(),
   });
 }

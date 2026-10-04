@@ -39,11 +39,10 @@ export default function OutputPanel() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1.5 text-xs font-medium capitalize rounded-t-md transition-all ${
-                activeTab === tab
+              className={`px-3 py-1.5 text-xs font-medium capitalize rounded-t-md transition-all ${activeTab === tab
                   ? "bg-slate-900 text-indigo-300 border-t-2 border-indigo-400"
                   : "text-slate-400 hover:text-slate-200"
-              }`}
+                }`}
             >
               {tab}
             </button>
@@ -146,7 +145,7 @@ export default function OutputPanel() {
                     return (
                       <div key={i} className="flex gap-2 text-rose-400 bg-rose-950/30 p-1.5 rounded border border-rose-900/40">
                         <span className="text-slate-600 select-none">[{log.timestamp.slice(11, 19)}]</span>
-                        <span className="font-semibold">{log.title ? `[${log.title}] ` : ""}{log.message}</span>
+                        <span className="font-semibold">{log.message}</span>
                       </div>
                     );
                   }
