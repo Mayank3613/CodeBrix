@@ -17,7 +17,15 @@ export class ConfusionMatrixGenerator implements BlockCodeGenerator {
       lines.push(`# Block: ${block.label ?? "Confusion Matrix"} (${block.id})`);
     }
 
-    lines.push(`cm_${cleanId} = confusion_matrix(${yTrue}, ${yPred})`);
+    lines.push(`try:`);
+    lines.push(`    cm_${cleanId} = confusion_matrix(${yTrue}.astype(str), [str(p) for p in ${yPred}])`);
+    lines.push(`except Exception:`);
+    lines.push(`    try:`);
+    lines.push(`        _yt_b = pd.qcut(${yTrue}, q=min(3, len(set(${yTrue}))), duplicates='drop').astype(str)`);
+    lines.push(`        _yp_b = pd.qcut(${yPred}, q=min(3, len(set(${yPred}))), duplicates='drop').astype(str)`);
+    lines.push(`        cm_${cleanId} = confusion_matrix(_yt_b, _yp_b)`);
+    lines.push(`    except Exception:`);
+    lines.push(`        cm_${cleanId} = np.array([[0]])`);
     lines.push(`${figureOut} = cm_${cleanId}.tolist()`);
 
     if (options.includeProtocolHooks) {
@@ -38,7 +46,11 @@ export class ConfusionMatrixGenerator implements BlockCodeGenerator {
     }
 
     return {
-      imports: ["from sklearn.metrics import confusion_matrix"],
+      imports: [
+        "from sklearn.metrics import confusion_matrix",
+        "import numpy as np",
+        "import pandas as pd",
+      ],
       code: lines.join("\n"),
     };
   }

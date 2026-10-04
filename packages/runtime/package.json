@@ -13,10 +13,14 @@
   },
   "dependencies": {
     "@codebrix/types": "workspace:*",
-    "@codebrix/shared": "workspace:*"
+    "@codebrix/shared": "workspace:*",
+    "@codebrix/graph-engine": "workspace:*",
+    "@codebrix/codegen": "workspace:*",
+    "nanoid": "^6.0.0"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "license": "MIT"
 }

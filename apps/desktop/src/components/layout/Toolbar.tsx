@@ -163,6 +163,23 @@ export default function Toolbar() {
     }
   };
 
+  const handleExportPython = async () => {
+    try {
+      if ("generatePythonScript" in workflowService) {
+        const code = await (workflowService as unknown as { generatePythonScript: (g: typeof graph) => Promise<string> }).generatePythonScript(graph);
+        const blob = new Blob([code], { type: "text/x-python;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${projectName.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}_pipeline.py`;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      alert(`Export Python error: ${(err as Error).message}`);
+    }
+  };
+
   const handleValidate = async () => {
     setIsValidating(true);
     try {
@@ -179,62 +196,27 @@ export default function Toolbar() {
     if (runState === "running" || isValidating) return;
 
     try {
-      // 1. Validate graph first
       setIsValidating(true);
-      const val = await workflowService.validateGraph(graph);
-      setValidationResult(val);
+      const valResult = await workflowService.validateGraph(graph);
+      setValidationResult(valResult);
       setIsValidating(false);
 
-      if (!val.valid) {
+      if (!valResult.valid) {
         useExecutionStore.getState().setStatusMessage(
-          `Validation failed (${val.errors.length} issue(s)) - resolve errors before running`
+          `Validation failed (${valResult.errors.length} issue(s)) - resolve errors before running`
         );
         return;
       }
 
-      // Auto-expand output panel so user sees real-time execution
       if (!useUiStore.getState().isOutputOpen) {
         useUiStore.getState().toggleOutput();
       }
-
-      // 2. Generate execution plan and Python script
-      let pythonCode: string;
-      try {
-        const plan = await workflowService.getExecutionPlan(graph);
-        const codeGen = new PythonCodeGenerator();
-        const generated = codeGen.generate(graph, plan);
-        pythonCode = generated.code;
-      } catch (genErr) {
-        const errMsg = (genErr as Error)?.message || String(genErr);
-        const failOutput = {
-          type: "error" as const,
-          message: `[Code Generation Error] ${errMsg}`,
-          timestamp: new Date().toISOString(),
-        };
-        useExecutionStore.getState().resetExecution();
-        useExecutionStore.getState().setRunState("failed");
-        useExecutionStore.getState().addOutput(failOutput);
-        useExecutionStore.getState().setStatusMessage(`Codegen failed: ${errMsg}`);
-        useExecutionStore.getState().setLatestResult({
-          executionId: `failed_${Date.now()}`,
-          workflowId: graph.id,
-          status: "failed",
-          startedAt: new Date().toISOString(),
-          completedAt: new Date().toISOString(),
-          durationMs: 0,
-          exitCode: 1,
-          blockResults: {},
-          outputs: [failOutput],
-          error: { message: errMsg },
-        });
-        return;
-      }
-
-      // 3. Run execution process
-      await runPythonExecution(pythonCode, graph.id);
+      useUiStore.getState().setActiveOutputTab("console");
+      await workflowService.executeWorkflow(graph);
     } catch (err) {
       setIsValidating(false);
       console.error("Execution error:", err);
+      useExecutionStore.getState().setStatusMessage(`Execution error: ${(err as Error).message}`);
     }
   };
 
@@ -397,6 +379,13 @@ export default function Toolbar() {
               title="Export project as .cbx"
             >
               Export
+            </button>
+            <button
+              onClick={handleExportPython}
+              className="px-2 py-1 text-xs text-indigo-300 hover:text-indigo-200 hover:bg-indigo-950/60 rounded transition-colors"
+              title="Export standalone Python script (.py)"
+            >
+              Export .py
             </button>
           </div>
 

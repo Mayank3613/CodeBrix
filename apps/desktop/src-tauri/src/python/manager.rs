@@ -4,11 +4,31 @@ use std::sync::{Mutex, OnceLock};
 
 static PYTHON_PROCESS: OnceLock<Mutex<Option<Child>>> = OnceLock::new();
 
-fn python_executable() -> &'static str {
+fn get_python_executable() -> String {
+    let venv_candidates = [
+        ".venv/bin/python",
+        "../../.venv/bin/python",
+        "../../../.venv/bin/python",
+        ".venv/Scripts/python.exe",
+        "../../.venv/Scripts/python.exe",
+        "../../../.venv/Scripts/python.exe",
+    ];
+
+    for candidate in &venv_candidates {
+        let p = std::path::PathBuf::from(candidate);
+        if p.exists() {
+            return p.to_string_lossy().to_string();
+        }
+    }
+
     if cfg!(target_os = "windows") {
-        "py"
+        if Command::new("py").arg("--version").output().is_ok() {
+            "py".to_string()
+        } else {
+            "python".to_string()
+        }
     } else {
-        "python3"
+        "python3".to_string()
     }
 }
 
@@ -47,17 +67,26 @@ fn find_runner_script() -> std::path::PathBuf {
 
 pub fn start_python() {
     let runner_path = find_runner_script();
-    let mut child = Command::new(python_executable())
+    let py_bin = get_python_executable();
+    let spawn_result = Command::new(&py_bin)
         .arg("-u")
         .arg(&runner_path)
         .env("PYTHONUNBUFFERED", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
-        .spawn()
-        .expect(
-            "Failed to start Python. Please run `pnpm setup` and ensure Python 3.11+ is installed.",
-        );
+        .spawn();
+
+    let mut child = match spawn_result {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!(
+                "[Warning] Could not start background Python ({}) for {}: {}. App will continue, run `pnpm setup` to install Python dependencies.",
+                py_bin, runner_path.display(), e
+            );
+            return;
+        }
+    };
 
     println!("Python started with PID: {}", child.id());
 

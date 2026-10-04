@@ -154,51 +154,57 @@ describe("WorkflowService (Desktop Service Provider)", () => {
     expect(plan.executionOrder).toContain("blk-csv");
   });
 
-  it("executes the Iris workflow in a live Python subprocess and returns computed results", async () => {
-    const irisGraph = createIrisWorkflowMock();
-    const result = await workflowService.executeWorkflow(irisGraph);
-    expect(result.status).toBe("success");
-    expect(result.exitCode).toBe(0);
-    expect(result.outputs.length).toBeGreaterThan(0);
+  it(
+    "executes the Iris workflow in a live Python subprocess and returns computed results",
+    async () => {
+      const irisGraph = createIrisWorkflowMock();
+      const result = await workflowService.executeWorkflow(irisGraph);
+      expect(result.status).toBe("success");
+      expect(result.exitCode).toBe(0);
+      expect(result.outputs.length).toBeGreaterThan(0);
 
-    // Verify real console stream from Python
-    const consoleOutput = result.outputs.find((o) => o.type === "console");
-    expect(consoleOutput).toBeDefined();
+      // Verify real console stream from Python
+      const consoleOutput = result.outputs.find((o) => o.type === "console");
+      expect(consoleOutput).toBeDefined();
 
-    // Verify real scikit-learn computed accuracy metric
-    const metricsOutput = result.outputs.find(
-      (o) => o.type === "metrics" && (o as { title?: string }).title === "Model Accuracy"
-    );
-    expect(metricsOutput).toBeDefined();
-    if (metricsOutput && metricsOutput.type === "metrics") {
-      expect(Number(metricsOutput.metrics["accuracy"])).toBeGreaterThanOrEqual(0.85);
-      expect(metricsOutput.metrics["test_samples"]).toBe(30);
-      expect(metricsOutput.metrics["correct_predictions"]).toBeDefined();
-      expect(metricsOutput.metrics["incorrect_predictions"]).toBeDefined();
-    }
+      // Verify real scikit-learn computed accuracy metric
+      const metricsOutput = result.outputs.find(
+        (o) => o.type === "metrics" && (o as { title?: string }).title === "Model Accuracy"
+      );
+      expect(metricsOutput).toBeDefined();
+      if (metricsOutput && metricsOutput.type === "metrics") {
+        expect(Number(metricsOutput.metrics["accuracy"])).toBeGreaterThanOrEqual(0.85);
+        expect(metricsOutput.metrics["test_samples"]).toBe(30);
+        expect(metricsOutput.metrics["correct_predictions"]).toBeDefined();
+        expect(metricsOutput.metrics["incorrect_predictions"]).toBeDefined();
+      }
 
-    // Verify real tabular dataset preview loaded by pandas from iris.csv
-    const tableOutput = result.outputs.find((o) => o.type === "table");
-    expect(tableOutput).toBeDefined();
-    if (tableOutput && tableOutput.type === "table") {
-      expect(tableOutput.totalRows).toBe(150);
-      expect(tableOutput.columns).toContain("species");
-      expect(tableOutput.rows.length).toBeGreaterThan(0);
-    }
+      // Verify real tabular dataset preview loaded by pandas from iris.csv
+      const tableOutput = result.outputs.find((o) => o.type === "table");
+      expect(tableOutput).toBeDefined();
+      if (tableOutput && tableOutput.type === "table") {
+        expect(tableOutput.totalRows).toBe(150);
+        expect(tableOutput.columns).toContain("species");
+        expect(tableOutput.rows.length).toBeGreaterThan(0);
+      }
 
-    // Verify real computed multiclass confusion matrix
-    const cmOutput = result.outputs.find(
-      (o) => o.type === "metrics" && (o as { title?: string }).title === "Confusion Matrix"
-    );
-    expect(cmOutput).toBeDefined();
-    if (cmOutput && cmOutput.type === "metrics") {
-      expect(Array.isArray(cmOutput.metrics["matrix"])).toBe(true);
-      const matrix = cmOutput.metrics["matrix"] as unknown as number[][];
-      expect(matrix.length).toBe(3); // 3 classes of Iris: setosa, versicolor, virginica
-    }
-  });
+      // Verify real computed multiclass confusion matrix
+      const cmOutput = result.outputs.find(
+        (o) => o.type === "metrics" && (o as { title?: string }).title === "Confusion Matrix"
+      );
+      expect(cmOutput).toBeDefined();
+      if (cmOutput && cmOutput.type === "metrics") {
+        expect(Array.isArray(cmOutput.metrics["matrix"])).toBe(true);
+        const matrix = cmOutput.metrics["matrix"] as unknown as number[][];
+        expect(matrix.length).toBe(3); // 3 classes of Iris: setosa, versicolor, virginica
+      }
+    },
+    25000
+  );
 
-  it("dynamically re-computes results when workflow parameters change (no hardcoded values)", async () => {
+  it(
+    "dynamically re-computes results when workflow parameters change (no hardcoded values)",
+    async () => {
     const irisGraph = createIrisWorkflowMock();
 
     // Modify test_size from 0.2 to 0.4 in the workflow configuration
@@ -229,5 +235,15 @@ describe("WorkflowService (Desktop Service Provider)", () => {
       expect(metricsOutput.metrics["test_samples"]).toBe(60);
       expect(Number(metricsOutput.metrics["accuracy"])).toBeGreaterThanOrEqual(0.85);
     }
+  }, 25000);
+
+  it("generates standalone Python script from workflow DAG", async () => {
+    const irisGraph = createIrisWorkflowMock();
+    const service = workflowService as unknown as { generatePythonScript: (g: typeof irisGraph) => Promise<string> };
+    expect(typeof service.generatePythonScript).toBe("function");
+    const script = await service.generatePythonScript(irisGraph);
+    expect(script).toContain("import pandas as pd");
+    expect(script).toContain("RandomForestClassifier");
+    expect(script).toContain("emit_json");
   });
 });

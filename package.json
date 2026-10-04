@@ -11,8 +11,11 @@
     "build:tauri": "pnpm --filter codebrix-appsdesktop tauri build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "validate:iris": "tsx scripts/validate-iris.ts",
+    "generate:iris": "tsx scripts/generate-iris.ts",
+    "run:iris": "tsx scripts/run-iris.ts",
     "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm --filter codebrix-appsdesktop test && pnpm --filter @codebrix/library-core test && pnpm --filter @codebrix/library-data test"
   },
   "keywords": [],

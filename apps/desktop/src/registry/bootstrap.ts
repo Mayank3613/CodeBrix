@@ -1,4 +1,4 @@
-import { blockRegistry } from "./BlockRegistry";
+import { blockRegistry } from "./BlockRegistry.js";
 import {
   variablesBlockDefinition,
   conditionsBlockDefinition,

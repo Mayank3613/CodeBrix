@@ -1,3 +1,4 @@
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useExecutionStore, useUiStore, type OutputTab } from "../../stores";
 import { outputRendererRegistry } from "./registry";
 import "./renderers"; // Ensure standard renderers are registered
@@ -21,6 +22,8 @@ export default function OutputPanel() {
   const toggleOutput = useUiStore((s) => s.toggleOutput);
   const activeTab = useUiStore((s) => s.activeOutputTab);
   const setActiveTab = useUiStore((s) => s.setActiveOutputTab);
+  const panelHeight = useUiStore((s) => s.outputPanelHeight);
+  const setPanelHeight = useUiStore((s) => s.setOutputPanelHeight);
 
   const runState = useExecutionStore((s) => s.runState);
   const result = useExecutionStore((s) => s.latestResult);
@@ -28,9 +31,71 @@ export default function OutputPanel() {
   const outputs = useExecutionStore((s) => s.outputs);
   const clearOutputs = useExecutionStore((s) => s.clearOutputs);
 
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [previousHeight, setPreviousHeight] = useState(panelHeight);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const dragStartY = useRef(0);
+  const dragStartHeight = useRef(panelHeight);
+
+  // Resize handler on mousedown
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsDragging(true);
+      dragStartY.current = e.clientY;
+      dragStartHeight.current = panelHeight;
+      document.body.style.cursor = "row-resize";
+      document.body.style.userSelect = "none";
+    },
+    [panelHeight]
+  );
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaY = dragStartY.current - e.clientY;
+      const nextHeight = Math.max(
+        150,
+        Math.min(window.innerHeight - 100, dragStartHeight.current + deltaY)
+      );
+      setPanelHeight(nextHeight);
+      if (isMaximized) setIsMaximized(false);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, isMaximized, setPanelHeight]);
+
+  const toggleMaximize = useCallback(() => {
+    if (isMaximized) {
+      setPanelHeight(previousHeight);
+      setIsMaximized(false);
+    } else {
+      setPreviousHeight(panelHeight);
+      setPanelHeight(Math.round(window.innerHeight * 0.65));
+      setIsMaximized(true);
+    }
+  }, [isMaximized, panelHeight, previousHeight, setPanelHeight]);
+
   if (!isOutputOpen) {
     return (
-      <aside aria-label="Output Notebook" className="h-8 bg-slate-900 border-t border-slate-800 px-4 flex items-center justify-between shrink-0 select-none">
+      <aside
+        aria-label="Output Notebook"
+        className="h-8 bg-slate-900 border-t border-slate-800 px-4 flex items-center justify-between shrink-0 select-none"
+      >
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono text-slate-400">Output Notebook</span>
           {runState === "running" && (
@@ -100,11 +165,32 @@ export default function OutputPanel() {
         ).length;
       default:
         return 0;
-    }
+     }
   };
 
+  const consoleLogs = liveOutputs.filter((o) => o.type === "console" || o.type === "error");
+  const errorCount = consoleLogs.filter(
+    (l) => l.type === "error" || (l.type === "console" && l.stream === "stderr")
+  ).length;
+
   return (
-    <footer aria-label="Output Notebook" className="h-64 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex flex-col shrink-0 overflow-hidden select-none">
+    <footer
+      aria-label="Output Notebook"
+      style={{ height: `${panelHeight}px` }}
+      className={`bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex flex-col shrink-0 overflow-hidden relative select-none transition-height ${
+        isDragging ? "transition-none" : "duration-75"
+      }`}
+    >
+      {/* Interactive Top Resize Handle */}
+      <div
+        onMouseDown={handleMouseDown}
+        onDoubleClick={toggleMaximize}
+        className="h-2 w-full bg-slate-900/80 hover:bg-indigo-500/60 active:bg-indigo-400 cursor-row-resize transition-colors flex items-center justify-center group select-none shrink-0 border-t border-slate-700/60"
+        title="Drag up/down to resize output panel. Double-click to maximize."
+      >
+        <div className="w-14 h-1 bg-slate-600 group-hover:bg-indigo-200 group-active:bg-white rounded-full transition-colors" />
+      </div>
+
       {/* Header Bar */}
       <div className="h-9 px-4 bg-slate-950/70 border-b border-slate-800/80 flex items-center justify-between shrink-0">
         {/* Navigation Tabs */}
@@ -124,7 +210,11 @@ export default function OutputPanel() {
                 }`}
               >
                 <span>{tab.label}</span>
-                {count > 0 && (
+                {tab.id === "console" && errorCount > 0 ? (
+                  <span className="px-1.5 py-0.2 bg-rose-500/20 text-rose-300 text-[10px] rounded-full border border-rose-500/40 font-mono">
+                    {errorCount} err
+                  </span>
+                ) : count > 0 ? (
                   <span
                     className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
                       isActive
@@ -134,17 +224,17 @@ export default function OutputPanel() {
                   >
                     {count}
                   </span>
-                )}
+                ) : null}
               </button>
             );
           })}
         </div>
 
-        {/* Status, Duration, Exit Code & Collapse */}
-        <div className="flex items-center gap-4 text-xs font-mono">
+        {/* Status, Duration, Exit Code & Actions */}
+        <div className="flex items-center gap-3 text-xs font-mono">
           {runState === "running" ? (
-            <span className="text-amber-400 flex items-center gap-1.5 animate-pulse font-medium">
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span className="text-amber-400 flex items-center gap-1.5 animate-pulse truncate max-w-md font-medium">
+              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
               {statusMessage || "Executing Python subprocess..."}
             </span>
           ) : result ? (
@@ -156,10 +246,10 @@ export default function OutputPanel() {
               >
                 {result.status === "success" ? "✓" : "✗"} {result.status}
               </span>
-              {result.durationMs !== undefined && (
+              {typeof result.durationMs === "number" && (
                 <span>{result.durationMs}ms</span>
               )}
-              {result.exitCode !== undefined && (
+              {typeof result.exitCode === "number" && (
                 <span className="text-slate-500">exit: {result.exitCode}</span>
               )}
             </div>
@@ -172,16 +262,26 @@ export default function OutputPanel() {
           {liveOutputs.length > 0 && (
             <button
               onClick={clearOutputs}
-              className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
+              className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
               title="Clear all outputs"
             >
               Clear
             </button>
           )}
 
+          {/* Maximize / Restore Button */}
+          <button
+            onClick={toggleMaximize}
+            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors text-xs cursor-pointer"
+            title={isMaximized ? "Restore size" : "Maximize output panel"}
+          >
+            {isMaximized ? "❐" : "🗖"}
+          </button>
+
+          {/* Collapse Button */}
           <button
             onClick={toggleOutput}
-            className="text-xs text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors text-xs cursor-pointer"
             title="Collapse output panel"
           >
             ▼
@@ -190,7 +290,7 @@ export default function OutputPanel() {
       </div>
 
       {/* Content Area Host */}
-      <div className="flex-1 p-4 overflow-auto">
+      <div className="flex-1 p-4 overflow-auto font-mono text-xs select-text">
         {RendererComponent ? (
           <RendererComponent
             messages={liveOutputs}

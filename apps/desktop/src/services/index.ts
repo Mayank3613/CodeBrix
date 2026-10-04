@@ -1,17 +1,19 @@
 /**
  * CodeBrix Workflow Service Provider
  *
- * Central export seam for Developer 2's Workflow Engine.
- * Exports the RealWorkflowService backed by @codebrix/graph-engine and @codebrix/codegen.
+ * Phase 4 & 5 Integration:
+ * Exports the production EngineWorkflowService backed by @codebrix/graph-engine,
+ * @codebrix/codegen, and the Python execution runtime.
  */
 
+import { EngineWorkflowService } from "./engineWorkflowService.js";
 import { MockWorkflowService, type IWorkflowService } from "@codebrix/shared";
-import { RealWorkflowService } from "./workflowEngineService";
+import { RealWorkflowService } from "./workflowEngineService.js";
 
-// Instance of the active workflow service
-export const workflowService: IWorkflowService = new RealWorkflowService();
+// Active workflow service instance
+export const workflowService: IWorkflowService = new EngineWorkflowService();
 
-// Re-export interface for components and stores
+// Re-export interface and classes
 export type { IWorkflowService };
-export { MockWorkflowService, RealWorkflowService };
-export * from "./tauriPythonRuntime";
+export { EngineWorkflowService, RealWorkflowService, MockWorkflowService };
+export * from "./tauriPythonRuntime.js";

@@ -1,3 +1,3 @@
-export * from "./BlockRegistry";
-export * from "./bootstrap";
-export * from "./libraryLoader";
+export * from "./BlockRegistry.js";
+export * from "./bootstrap.js";
+export * from "./libraryLoader.js";

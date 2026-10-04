@@ -16,6 +16,7 @@ export interface UiState {
   isPaletteOpen: boolean;
   isPropertiesOpen: boolean;
   isOutputOpen: boolean;
+  outputPanelHeight: number;
   zoomLevel: number;
 
   selectBlock: (blockId: string | null) => void;
@@ -24,6 +25,7 @@ export interface UiState {
   togglePalette: () => void;
   toggleProperties: () => void;
   toggleOutput: () => void;
+  setOutputPanelHeight: (height: number) => void;
   setZoomLevel: (zoom: number) => void;
   resetUi: () => void;
 }
@@ -36,6 +38,7 @@ export const useUiStore = create<UiState>((set) => ({
   isPaletteOpen: true,
   isPropertiesOpen: true,
   isOutputOpen: true,
+  outputPanelHeight: 320,
   zoomLevel: 1,
 
   selectBlock: (blockId: string | null) =>
@@ -56,6 +59,14 @@ export const useUiStore = create<UiState>((set) => ({
     set((state) => ({ isPropertiesOpen: !state.isPropertiesOpen })),
 
   toggleOutput: () => set((state) => ({ isOutputOpen: !state.isOutputOpen })),
+
+  setOutputPanelHeight: (height: number) =>
+    set({
+      outputPanelHeight: Math.max(
+        140,
+        Math.min(typeof window !== "undefined" ? window.innerHeight - 100 : 700, height)
+      ),
+    }),
 
   setZoomLevel: (zoom: number) => set({ zoomLevel: zoom }),
 

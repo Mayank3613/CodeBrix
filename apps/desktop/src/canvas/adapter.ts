@@ -97,6 +97,9 @@ export function toReactFlowGraph(graph: WorkflowGraph): {
     sourceHandle: conn.sourcePortId,
     target: conn.targetBlockId,
     targetHandle: conn.targetPortId,
+    selectable: true,
+    focusable: true,
+    interactionWidth: 30,
     data: {
       connectionId: conn.id,
     },

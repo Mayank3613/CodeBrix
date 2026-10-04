@@ -86,6 +86,29 @@ function CanvasContent() {
     [removeConnection]
   );
 
+  const onEdgeDoubleClick = useCallback(
+    (_event: React.MouseEvent, edge: import("@xyflow/react").Edge) => {
+      removeConnection(edge.id);
+      setConnectionFeedback({
+        message: "Connection removed",
+        type: "valid",
+      });
+    },
+    [removeConnection]
+  );
+
+  const onEdgeContextMenu = useCallback(
+    (event: React.MouseEvent, edge: import("@xyflow/react").Edge) => {
+      event.preventDefault();
+      removeConnection(edge.id);
+      setConnectionFeedback({
+        message: "Connection deleted",
+        type: "valid",
+      });
+    },
+    [removeConnection]
+  );
+
   // Type compatibility check
   const isValidConnection = useCallback(
     (connection: FlowConnection | import("@xyflow/react").Edge): boolean => {
@@ -222,6 +245,11 @@ function CanvasContent() {
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onEdgeDoubleClick={onEdgeDoubleClick}
+        onEdgeContextMenu={onEdgeContextMenu}
+        deleteKeyCode={["Backspace", "Delete"]}
+        edgesFocusable={true}
+        edgesReconnectable={true}
         onConnect={onConnect}
         onConnectEnd={onConnectEnd}
         isValidConnection={isValidConnection}

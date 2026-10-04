@@ -23,28 +23,36 @@ export class TrainTestSplitGenerator implements BlockCodeGenerator {
       lines.push(`# Block: ${block.label ?? "Train/Test Split"} (${block.id})`);
     }
 
-    lines.push(`df_src_${cleanId} = ${inputDataset}`);
+    lines.push(`df_src_${cleanId} = ${inputDataset}.copy()`);
     lines.push(`target_col_${cleanId} = ${JSON.stringify(targetColumn)}`);
     lines.push(`if target_col_${cleanId} in df_src_${cleanId}.columns:`);
-    lines.push(`    X_${cleanId} = df_src_${cleanId}.drop(columns=[target_col_${cleanId}])`);
-    lines.push(`    y_${cleanId} = df_src_${cleanId}[target_col_${cleanId}]`);
+    lines.push(`    _target_name_${cleanId} = target_col_${cleanId}`);
     lines.push(`else:`);
-    lines.push(`    X_${cleanId} = df_src_${cleanId}.iloc[:, :-1]`);
-    lines.push(`    y_${cleanId} = df_src_${cleanId}.iloc[:, -1]`);
+    lines.push(`    _target_name_${cleanId} = df_src_${cleanId}.columns[-1]`);
+    lines.push(`y_${cleanId} = df_src_${cleanId}[_target_name_${cleanId}]`);
+    lines.push(`X_${cleanId} = df_src_${cleanId}.drop(columns=[_target_name_${cleanId}])`);
+    lines.push(`_valid_mask_${cleanId} = ~y_${cleanId}.isna()`);
+    lines.push(`X_${cleanId} = X_${cleanId}[_valid_mask_${cleanId}]`);
+    lines.push(`y_${cleanId} = y_${cleanId}[_valid_mask_${cleanId}]`);
+    lines.push(`_cat_cols_${cleanId} = X_${cleanId}.select_dtypes(include=['object', 'category', 'string']).columns`);
+    lines.push(`if len(_cat_cols_${cleanId}) > 0:`);
+    lines.push(`    X_${cleanId} = pd.get_dummies(X_${cleanId}, columns=_cat_cols_${cleanId}, drop_first=True, dtype=float)`);
+    lines.push(`X_${cleanId} = X_${cleanId}.fillna(0)`);
+    lines.push(`_effective_test_size_${cleanId} = min(max(int(len(X_${cleanId}) * ${testSize}), 1), len(X_${cleanId}) - 1) if len(X_${cleanId}) > 1 else 0.2`);
     lines.push(
       `X_tr_${cleanId}, X_te_${cleanId}, y_tr_${cleanId}, ${yTestOut} = train_test_split(` +
-        `X_${cleanId}, y_${cleanId}, test_size=${testSize}, random_state=${randomState}` +
+        `X_${cleanId}, y_${cleanId}, test_size=_effective_test_size_${cleanId}, random_state=${randomState}` +
         `)`
     );
-    // Combine X_train and y_train so downstream classifier block receives dataframe with target
-    lines.push(`${trainDataOut} = pd.concat([X_tr_${cleanId}, y_tr_${cleanId}], axis=1)`);
+    lines.push(`${trainDataOut} = pd.concat([X_tr_${cleanId}, y_tr_${cleanId}.rename(_target_name_${cleanId})], axis=1)`);
     lines.push(`${testDataOut} = X_te_${cleanId}`);
 
     if (options.includeProtocolHooks) {
       lines.push(`emit_json({`);
       lines.push(`    "type": "console",`);
       lines.push(`    "stream": "stdout",`);
-      lines.push(`    "text": f"[${block.id}] Split completed: {len(${trainDataOut})} training rows, {len(${testDataOut})} test rows (test_size=${testSize})",`);
+      lines.push(`    "blockId": ${JSON.stringify(block.id)},`);
+      lines.push(`    "text": f"[${block.id}] Split completed: {len(${trainDataOut})} training rows, {len(${testDataOut})} test rows (test_size=${testSize}, target: '{_target_name_${cleanId}}')",`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
     }
