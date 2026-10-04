@@ -1,27 +1,31 @@
-import Header from  "./components/layout/Header";
-import Toolbar from  "./components/layout/Toolbar";
-import Explorer from "./components/layout/Explorer";
-import Canvas from "./components/layout/Canvas";
-import Panel from "./components/layout/Panel";
-import Footer from "./components/layout/Footer";
+import { useEffect } from "react";
+import Header from "./components/layout/Header";
+import Toolbar from "./components/layout/Toolbar";
+import Palette from "./palette/Palette";
+import Canvas from "./canvas/Canvas";
+import PropertiesPanel from "./panels/properties/PropertiesPanel";
+import ValidationPanel from "./panels/validation/ValidationPanel";
+import OutputPanel from "./panels/output/OutputPanel";
+import { bootstrapDefaultBlocks } from "./registry";
 
-function App() {
+export default function App() {
+  useEffect(() => {
+    bootstrapDefaultBlocks();
+  }, []);
 
   return (
-    <main className="bg-emerald-900 h-screen m-0 flex flex-col gap-2">
-      <Header></Header>
-      <Toolbar></Toolbar>
+    <main className="h-screen w-screen flex flex-col bg-slate-950 text-slate-100 overflow-hidden select-none">
+      <Header />
+      <Toolbar />
+      <ValidationPanel />
 
-      <div className="flex h-[57%] gap-2">
-        <Explorer></Explorer>
-        <Canvas></Canvas>
-        <Panel></Panel>
+      <div className="flex flex-1 overflow-hidden relative">
+        <Palette />
+        <Canvas />
+        <PropertiesPanel />
       </div>
 
-      <Footer ></Footer>
-
+      <OutputPanel />
     </main>
-  )
+  );
 }
-
-export default App;

@@ -1,0 +1,7 @@
+{
+  "name": "scikit-learn",
+  "version": "0.1.0",
+  "description": "CodeBrix Scikit-Learn ML blocks (Split, RF, Linear, Decision Tree, KNN, Predict, Accuracy)",
+  "author": "Developer 2",
+  "blocks": []
+}

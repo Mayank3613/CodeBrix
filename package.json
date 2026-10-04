@@ -6,14 +6,16 @@
   "scripts": {
     "setup": "tsx scripts/setup.ts",
     "dev": "pnpm --filter codebrix-appsdesktop tauri dev",
-    "build": "pnpm --filter codebrix-appsdesktop tauri build",
+    "dev:web": "pnpm --filter codebrix-appsdesktop dev",
+    "build": "pnpm --filter codebrix-appsdesktop build",
+    "build:tauri": "pnpm --filter codebrix-appsdesktop tauri build",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "validate:iris": "tsx scripts/validate-iris.ts",
     "generate:iris": "tsx scripts/generate-iris.ts",
-    "ci": "pnpm lint && pnpm typecheck && pnpm test"
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm --filter codebrix-appsdesktop test && pnpm --filter @codebrix/library-data test"
   },
   "keywords": [],
   "author": "",

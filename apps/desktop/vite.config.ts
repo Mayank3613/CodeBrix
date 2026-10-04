@@ -1,15 +1,25 @@
 import { defineConfig } from "vite";
-import tailwindcss from '@tailwindcss/vite'
+import tailwindcss from '@tailwindcss/vite';
 import react from "@vitejs/plugin-react";
+import path from "node:path";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [react(),
+  plugins: [
+    react(),
     tailwindcss()
   ],
+  resolve: {
+    alias: {
+      "@codebrix/types": path.resolve(__dirname, "../../packages/types/src/index.ts"),
+      "@codebrix/shared": path.resolve(__dirname, "../../packages/shared/src/index.ts"),
+      "@codebrix/graph-engine": path.resolve(__dirname, "../../packages/graph-engine/src/index.ts"),
+      "@codebrix/library-data": path.resolve(__dirname, "../../libraries/data/src/index.ts"),
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

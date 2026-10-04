@@ -25,11 +25,17 @@
       "@codebrix/types": ["packages/types/src/index.ts"],
       "@codebrix/shared": ["packages/shared/src/index.ts"],
       "@codebrix/graph-engine": ["packages/graph-engine/src/index.ts"],
-      "@codebrix/codegen": ["packages/codegen/src/index.ts"]
+      "@codebrix/codegen": ["packages/codegen/src/index.ts"],
+      "@codebrix/runtime": ["packages/runtime/src/index.ts"],
+      "@codebrix/library-core": ["libraries/core/src/index.ts"],
+      "@codebrix/library-data": ["libraries/data/src/index.ts"],
+      "@codebrix/library-scikit-learn": ["libraries/scikit-learn/src/index.ts"],
+      "@codebrix/library-visualization": ["libraries/visualization/src/index.ts"]
     }
   },
   "include": [
     "packages/*/src/**/*",
+    "libraries/*/src/**/*",
     "tests/**/*",
     "scripts/**/*"
   ],

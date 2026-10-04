@@ -1,0 +1,7 @@
+{
+  "name": "visualization",
+  "version": "0.1.0",
+  "description": "CodeBrix visualization blocks (Plotly, Confusion Matrix, Feature Importance)",
+  "author": "Developer 2",
+  "blocks": []
+}
