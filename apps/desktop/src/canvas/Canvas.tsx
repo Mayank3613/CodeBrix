@@ -7,8 +7,6 @@ import {
   type Connection as FlowConnection,
   type EdgeChange,
   type NodeChange,
-  applyNodeChanges,
-  applyEdgeChanges,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { BlockNode } from "./BlockNode";
@@ -48,14 +46,10 @@ export default function Canvas() {
           updateBlockPosition(change.id, change.position);
         } else if (change.type === "remove") {
           removeBlock(change.id);
-        } else if (change.type === "select") {
-          if (change.selected) {
-            selectBlock(change.id);
-          }
         }
       }
     },
-    [updateBlockPosition, removeBlock, selectBlock]
+    [updateBlockPosition, removeBlock]
   );
 
   const onEdgesChange = useCallback(
@@ -114,15 +108,10 @@ export default function Canvas() {
         nodes={nodes}
         edges={edges as unknown as import("@xyflow/react").Edge[]}
         nodeTypes={nodeTypes}
-        onNodesChange={(changes) => {
-          applyNodeChanges(changes, nodes);
-          onNodesChange(changes);
-        }}
-        onEdgesChange={(changes) => {
-          applyEdgeChanges(changes, edges as unknown as import("@xyflow/react").Edge[]);
-          onEdgesChange(changes);
-        }}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeClick={(_event, node) => selectBlock(node.id)}
         onPaneClick={() => selectBlock(null)}
         fitView
         colorMode="dark"

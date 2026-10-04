@@ -22,11 +22,13 @@ const PORT_COLORS: Record<PortType, { bg: string; border: string; text: string }
   any: { bg: "bg-slate-400", border: "border-slate-200", text: "text-slate-200" },
 };
 
+const EMPTY_ERRORS: import("@codebrix/types").ValidationError[] = [];
+
 function BlockNodeComponent({ id, data, selected }: NodeProps) {
   const nodeData = data as unknown as BlockNodeData;
   const def = blockRegistry.get(nodeData.definitionId);
 
-  const errors = useValidationStore((s) => s.errorMapByBlockId[id] || []);
+  const errors = useValidationStore((s) => s.errorMapByBlockId[id] || EMPTY_ERRORS);
   const blockStatus = useExecutionStore((s) => s.blockStatuses[id] || nodeData.state || "idle");
 
   const inputs = def?.inputs || [];
