@@ -1,0 +1,48 @@
+import type { BlockCodeGenerator, BlockCodeContext, BlockCodeResult } from "../types.js";
+import { getOutputVariableName } from "../variable-resolver.js";
+
+export class ExcelLoaderGenerator implements BlockCodeGenerator {
+  readonly definitionId = "data.excel_loader";
+
+  generate(context: BlockCodeContext): BlockCodeResult {
+    const { block, inputs, outputs, options } = context;
+    const outputVar = outputs["dataset_out"] ?? getOutputVariableName(block.id, "dataset_out");
+
+    const rawPath = (block.config["filePath"] as string) ?? (block.config["filepath"] as string) ?? "data.xlsx";
+    const sanitizedPath = typeof rawPath === "string"
+      ? rawPath.trim().replace(/^["']+|["']+$/g, "").replace(/\\/g, "/")
+      : "data.xlsx";
+    const sheetName = String(block.config["sheetName"] ?? "Sheet1");
+    const headerRow = Number(block.config["headerRow"] ?? 0);
+    const filePathExpr = inputs["file_path_in"] ? inputs["file_path_in"] : JSON.stringify(sanitizedPath);
+
+    const safeId = block.id.replace(/[^a-zA-Z0-9_]/g, "_");
+    const lines: string[] = [];
+
+    if (options.includeComments) {
+      lines.push(`# Block: ${block.label ?? "Excel Loader"} (${block.id})`);
+    }
+
+    lines.push(`excel_path_${safeId} = str(${filePathExpr}).strip().strip('"').strip("'")`);
+    lines.push(`if not os.path.isabs(excel_path_${safeId}) and not os.path.exists(excel_path_${safeId}):`);
+    lines.push(`    for _cand in [os.path.join(os.getcwd(), excel_path_${safeId}), os.path.join(os.path.dirname(os.getcwd()), excel_path_${safeId})]:`);
+    lines.push(`        if os.path.exists(_cand):`);
+    lines.push(`            excel_path_${safeId} = _cand`);
+    lines.push(`            break`);
+    lines.push(`${outputVar} = pd.read_excel(excel_path_${safeId}, sheet_name=${JSON.stringify(sheetName)}, header=${headerRow})`);
+
+    if (options.includeProtocolHooks) {
+      lines.push(`emit_json({`);
+      lines.push(`    "type": "console",`);
+      lines.push(`    "stream": "stdout",`);
+      lines.push(`    "text": f"[${block.id}] Loaded Excel: {len(${outputVar})} rows from {excel_path_${safeId}}",`);
+      lines.push(`    "timestamp": iso_now()`);
+      lines.push(`})`);
+    }
+
+    return {
+      imports: ["import pandas as pd", "import os"],
+      code: lines.join("\n"),
+    };
+  }
+}

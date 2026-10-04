@@ -1,5 +1,9 @@
 import type { BlockCodeGenerator } from "../types.js";
 import { CsvLoaderGenerator } from "./csv-loader.js";
+import { JsonLoaderGenerator } from "./json-loader.js";
+import { ExcelLoaderGenerator } from "./excel-loader.js";
+import { ScalerGenerator } from "./scaler.js";
+import { EncoderGenerator } from "./encoder.js";
 import { TrainTestSplitGenerator } from "./train-test-split.js";
 import { RandomForestGenerator } from "./random-forest.js";
 import { PredictGenerator } from "./predict.js";
@@ -9,6 +13,10 @@ import { FallbackBlockGenerator } from "./fallback.js";
 
 export {
   CsvLoaderGenerator,
+  JsonLoaderGenerator,
+  ExcelLoaderGenerator,
+  ScalerGenerator,
+  EncoderGenerator,
   TrainTestSplitGenerator,
   RandomForestGenerator,
   PredictGenerator,
@@ -33,6 +41,10 @@ export class BlockGeneratorRegistry {
    */
   registerDefaults(): void {
     this.register(new CsvLoaderGenerator());
+    this.register(new JsonLoaderGenerator());
+    this.register(new ExcelLoaderGenerator());
+    this.register(new ScalerGenerator());
+    this.register(new EncoderGenerator());
     this.register(new TrainTestSplitGenerator());
     this.register(new RandomForestGenerator());
     this.register(new PredictGenerator());
@@ -59,5 +71,12 @@ export class BlockGeneratorRegistry {
    */
   has(definitionId: string): boolean {
     return this.generators.has(definitionId);
+  }
+
+  /**
+   * List all registered generator definition IDs.
+   */
+  list(): string[] {
+    return Array.from(this.generators.keys());
   }
 }

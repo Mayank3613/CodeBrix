@@ -14,6 +14,10 @@ export {
 export {
   BlockGeneratorRegistry,
   CsvLoaderGenerator,
+  JsonLoaderGenerator,
+  ExcelLoaderGenerator,
+  ScalerGenerator,
+  EncoderGenerator,
   TrainTestSplitGenerator,
   RandomForestGenerator,
   PredictGenerator,

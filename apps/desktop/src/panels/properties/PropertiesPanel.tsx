@@ -136,8 +136,10 @@ export default function PropertiesPanel() {
                         <input
                           type="text"
                           value={String(currentVal)}
-                          placeholder={field.placeholder || "Select or enter file path..."}
-                          onChange={(e) => handleFieldChange(key, e.target.value, field)}
+                          onChange={(e) => {
+                            const cleaned = e.target.value.trim().replace(/^["']+|["']+$/g, "");
+                            handleFieldChange(key, cleaned, field);
+                          }}
                           className={`flex-1 bg-slate-950 border rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none transition-colors ${
                             hasError
                               ? "border-rose-500 focus:border-rose-400"

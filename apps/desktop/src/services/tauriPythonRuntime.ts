@@ -114,6 +114,20 @@ export async function runPythonExecution(
               }
               return;
             }
+            if (json.event === "error") {
+              const errPayload = json.payload || {};
+              const msg = errPayload.message || "Execution error";
+              const tb = errPayload.traceback || undefined;
+              const errorObj = {
+                type: "error" as const,
+                message: msg,
+                traceback: tb,
+                timestamp: json.timestamp || new Date().toISOString(),
+              };
+              outputsAccumulator.push(errorObj);
+              useExecutionStore.getState().addOutput(errorObj);
+              return;
+            }
             if (json.event === "status") {
               if (typeof json.payload === "string") {
                 useExecutionStore.getState().setStatusMessage(`Status: ${json.payload}`);

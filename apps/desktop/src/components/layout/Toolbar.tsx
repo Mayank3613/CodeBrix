@@ -206,6 +206,7 @@ export default function Toolbar() {
       if (!useUiStore.getState().isOutputOpen) {
         useUiStore.getState().toggleOutput();
       }
+      useUiStore.getState().setActiveOutputTab("console");
       await workflowService.executeWorkflow(graph);
     } catch (err) {
       console.error("Execution error:", err);
