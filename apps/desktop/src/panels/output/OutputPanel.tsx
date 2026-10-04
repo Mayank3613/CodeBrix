@@ -1,66 +1,53 @@
-import { useState } from "react";
-import type { ExecutionResult } from "@codebrix/types";
+import { useExecutionStore, useUiStore, type OutputTab } from "../../stores";
 
-interface FooterProps {
-  result: ExecutionResult | null;
-  isRunning: boolean;
-}
+export default function OutputPanel() {
+  const isOutputOpen = useUiStore((s) => s.isOutputOpen);
+  const toggleOutput = useUiStore((s) => s.toggleOutput);
+  const activeTab = useUiStore((s) => s.activeOutputTab);
+  const setActiveTab = useUiStore((s) => s.setActiveOutputTab);
 
-export default function Footer({ result, isRunning }: FooterProps) {
-  const [activeTab, setActiveTab] = useState<"console" | "metrics" | "table" | "visuals">("metrics");
+  const runState = useExecutionStore((s) => s.runState);
+  const result = useExecutionStore((s) => s.latestResult);
+
+  if (!isOutputOpen) {
+    return (
+      <div className="h-8 bg-slate-900 border-t border-slate-800 px-4 flex items-center justify-between shrink-0 select-none">
+        <span className="text-xs font-mono text-slate-400">Output Notebook (Collapsed)</span>
+        <button
+          onClick={toggleOutput}
+          className="text-xs text-indigo-400 hover:text-indigo-300 font-mono"
+        >
+          ▲ Expand
+        </button>
+      </div>
+    );
+  }
 
   const consoleLogs = result?.outputs.filter((o) => o.type === "console") || [];
   const metricsOutputs = result?.outputs.filter((o) => o.type === "metrics") || [];
 
   return (
-    <footer className="h-64 bg-slate-900/95 border-t border-slate-800 flex flex-col shrink-0 overflow-hidden">
-      {/* Tab Header & Run Status */}
-      <div className="h-10 px-4 bg-slate-950/70 border-b border-slate-800/80 flex items-center justify-between shrink-0">
+    <footer className="h-60 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex flex-col shrink-0 overflow-hidden select-none">
+      {/* Header bar */}
+      <div className="h-9 px-4 bg-slate-950/70 border-b border-slate-800/80 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => setActiveTab("metrics")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-all ${
-              activeTab === "metrics"
-                ? "bg-slate-900 text-indigo-300 border-t-2 border-indigo-400"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            Metrics & Scores
-          </button>
-          <button
-            onClick={() => setActiveTab("console")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-all ${
-              activeTab === "console"
-                ? "bg-slate-900 text-indigo-300 border-t-2 border-indigo-400"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            Console Output
-          </button>
-          <button
-            onClick={() => setActiveTab("table")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-all ${
-              activeTab === "table"
-                ? "bg-slate-900 text-indigo-300 border-t-2 border-indigo-400"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            Dataset Table
-          </button>
-          <button
-            onClick={() => setActiveTab("visuals")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-all ${
-              activeTab === "visuals"
-                ? "bg-slate-900 text-indigo-300 border-t-2 border-indigo-400"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            Confusion Matrix
-          </button>
+          {(["metrics", "console", "table", "visuals"] as OutputTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-3 py-1.5 text-xs font-medium capitalize rounded-t-md transition-all ${
+                activeTab === tab
+                  ? "bg-slate-900 text-indigo-300 border-t-2 border-indigo-400"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
 
-        <div className="flex items-center gap-3 text-xs font-mono">
-          {isRunning ? (
+        <div className="flex items-center gap-4 text-xs font-mono">
+          {runState === "running" ? (
             <span className="text-amber-400 flex items-center gap-1.5 animate-pulse">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
               Running execution...
@@ -68,18 +55,26 @@ export default function Footer({ result, isRunning }: FooterProps) {
           ) : result ? (
             <div className="flex items-center gap-3 text-slate-400">
               <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                ✓ Status: {result.status}
+                ✓ {result.status}
               </span>
-              <span>Duration: {result.durationMs}ms</span>
-              <span>Exit Code: {result.exitCode}</span>
+              <span>{result.durationMs}ms</span>
+              <span>exit: {result.exitCode}</span>
             </div>
           ) : (
-            <span className="text-slate-500 italic">No execution run yet</span>
+            <span className="text-slate-500 italic">No runs yet</span>
           )}
+
+          <button
+            onClick={toggleOutput}
+            className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+            title="Collapse output panel"
+          >
+            ▼
+          </button>
         </div>
       </div>
 
-      {/* Tab Content */}
+      {/* Content Area */}
       <div className="flex-1 p-4 overflow-auto font-mono text-xs">
         {activeTab === "metrics" && (
           <div className="space-y-3">
@@ -120,15 +115,15 @@ export default function Footer({ result, isRunning }: FooterProps) {
                 </div>
               </div>
             ) : (
-              <div className="text-slate-500 text-center py-8">
-                Click <span className="text-emerald-400 font-semibold font-sans">"Run Pipeline"</span> in the toolbar to execute the Iris workflow and stream metrics.
+              <div className="text-slate-500 text-center py-6">
+                Click <span className="text-emerald-400 font-semibold font-sans">"Run Pipeline"</span> to execute the workflow.
               </div>
             )}
           </div>
         )}
 
         {activeTab === "console" && (
-          <div className="space-y-1.5 bg-slate-950/80 p-3 rounded-lg border border-slate-800 text-slate-300">
+          <div className="space-y-1 bg-slate-950/80 p-3 rounded-lg border border-slate-800 text-slate-300">
             {consoleLogs.length > 0 ? (
               consoleLogs.map((log, i) => {
                 if (log.type !== "console") return null;

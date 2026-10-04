@@ -3,5 +3,8 @@
   "version": "0.1.0",
   "description": "CodeBrix data processing blocks (CSV, JSON, Excel, Scaling, Encoding)",
   "author": "Developer 1",
-  "blocks": []
+  "blocks": [
+    "blocks/csv/block.js",
+    "blocks/json/block.js"
+  ]
 }

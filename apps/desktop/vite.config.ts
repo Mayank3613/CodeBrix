@@ -17,6 +17,7 @@ export default defineConfig(async () => ({
       "@codebrix/types": path.resolve(__dirname, "../../packages/types/src/index.ts"),
       "@codebrix/shared": path.resolve(__dirname, "../../packages/shared/src/index.ts"),
       "@codebrix/graph-engine": path.resolve(__dirname, "../../packages/graph-engine/src/index.ts"),
+      "@codebrix/library-data": path.resolve(__dirname, "../../libraries/data/src/index.ts"),
     },
   },
 

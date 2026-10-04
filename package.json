@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm --filter codebrix-appsdesktop test"
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm --filter codebrix-appsdesktop test && pnpm --filter @codebrix/library-data test"
   },
   "keywords": [],
   "author": "",

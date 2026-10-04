@@ -1,12 +1,11 @@
 import { CONTRACT_VERSION } from "@codebrix/shared";
+import { useProjectStore } from "../../stores";
 
-interface HeaderProps {
-  projectName: string;
-}
+export default function Header() {
+  const projectName = useProjectStore((s) => s.projectName);
 
-export default function Header({ projectName }: HeaderProps) {
   return (
-    <header className="h-14 px-5 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 flex items-center justify-between z-10 shrink-0">
+    <header className="h-14 px-5 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 flex items-center justify-between z-10 shrink-0 select-none">
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 font-black text-white text-base">
           CB
@@ -30,9 +29,9 @@ export default function Header({ projectName }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="inline-flex items-center gap-1.5 text-xs text-amber-300 bg-amber-950/40 border border-amber-800/60 px-2.5 py-1 rounded-md">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-          Dev 1 Mode (Mock Service)
+        <span className="inline-flex items-center gap-1.5 text-xs text-indigo-300 bg-indigo-950/40 border border-indigo-800/60 px-2.5 py-1 rounded-md">
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+          Phase 1: React Flow Canvas
         </span>
         <a
           href="https://github.com/Mayank3613/CodeBrix"

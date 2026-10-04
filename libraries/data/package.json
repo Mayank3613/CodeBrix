@@ -15,6 +15,7 @@
     "@codebrix/types": "workspace:*"
   },
   "scripts": {
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "license": "MIT"
