@@ -54,7 +54,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f python/requirements.txt ]; then pip install -r python/requirements.txt; fi
+          if [ -f python/requirements.txt ]; then python -m pip install -r python/requirements.txt; fi
 
       - name: Install Node dependencies
         run: pnpm install

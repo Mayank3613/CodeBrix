@@ -20,59 +20,66 @@ export class PythonDetector {
    * @throws Error if no valid Python 3.11+ executable can be found.
    */
   detect(): PythonEnvironment {
-    // 1. Check .python-runtime.json
-    const configPath = path.join(this.searchDir, ".python-runtime.json");
-    if (fs.existsSync(configPath)) {
-      try {
-        const raw = fs.readFileSync(configPath, "utf-8");
-        const cfg = JSON.parse(raw) as { python?: string };
-        if (cfg.python && fs.existsSync(cfg.python)) {
-          const version = this.getPythonVersion(cfg.python);
-          if (version) {
-            return {
-              executable: cfg.python,
-              version,
-              isVenv: true,
-              cwd: this.searchDir,
-            };
+    // 1. Check .python-runtime.json and .venv in searchDir and ancestor directories
+    let currentDir = this.searchDir;
+    while (currentDir) {
+      const configPath = path.join(currentDir, ".python-runtime.json");
+      if (fs.existsSync(configPath)) {
+        try {
+          const raw = fs.readFileSync(configPath, "utf-8");
+          const cfg = JSON.parse(raw) as { python?: string };
+          if (cfg.python && fs.existsSync(cfg.python)) {
+            const version = this.getPythonVersion(cfg.python);
+            if (version) {
+              return {
+                executable: cfg.python,
+                version,
+                isVenv: true,
+                cwd: this.searchDir,
+              };
+            }
           }
+        } catch {
+          // Fall through to venv check
         }
-      } catch {
-        // Fall through to venv check
       }
+
+      // Check standard .venv directory (Windows and Unix paths)
+      const venvWin = path.join(currentDir, ".venv", "Scripts", "python.exe");
+      if (fs.existsSync(venvWin)) {
+        const version = this.getPythonVersion(venvWin);
+        if (version) {
+          return {
+            executable: venvWin,
+            version,
+            isVenv: true,
+            cwd: this.searchDir,
+          };
+        }
+      }
+
+      const venvUnix = path.join(currentDir, ".venv", "bin", "python");
+      if (fs.existsSync(venvUnix)) {
+        const version = this.getPythonVersion(venvUnix);
+        if (version) {
+          return {
+            executable: venvUnix,
+            version,
+            isVenv: true,
+            cwd: this.searchDir,
+          };
+        }
+      }
+
+      const parentDir = path.dirname(currentDir);
+      if (parentDir === currentDir) break;
+      currentDir = parentDir;
     }
 
-    // 2. Check standard .venv directory
-    const venvWin = path.join(this.searchDir, ".venv", "Scripts", "python.exe");
-    if (fs.existsSync(venvWin)) {
-      const version = this.getPythonVersion(venvWin);
-      if (version) {
-        return {
-          executable: venvWin,
-          version,
-          isVenv: true,
-          cwd: this.searchDir,
-        };
-      }
-    }
-
-    const venvUnix = path.join(this.searchDir, ".venv", "bin", "python");
-    if (fs.existsSync(venvUnix)) {
-      const version = this.getPythonVersion(venvUnix);
-      if (version) {
-        return {
-          executable: venvUnix,
-          version,
-          isVenv: true,
-          cwd: this.searchDir,
-        };
-      }
-    }
-
-    // 3. Check system candidates
+    // 2. Check system candidates (prioritize python over py on Windows)
     const candidates =
       process.platform === "win32"
-        ? ["py", "python"]
+        ? ["python", "python3", "py"]
         : ["python3", "python"];
 
     for (const cmd of candidates) {

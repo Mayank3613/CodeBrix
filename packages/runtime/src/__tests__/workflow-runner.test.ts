@@ -22,6 +22,14 @@ describe("WorkflowRunner End-to-End Execution", () => {
         },
       });
 
+      if (result.status !== "success") {
+        console.error("WorkflowRunner execution failed:", JSON.stringify(result.error ?? result, null, 2));
+        const stderrMsgs = streamedOutputs.filter((o) => o.type === "console" && o.stream === "stderr");
+        if (stderrMsgs.length > 0) {
+          console.error("WorkflowRunner stderr lines:", stderrMsgs);
+        }
+      }
+
       expect(result.status).toBe("success");
       expect(result.exitCode).toBe(0);
       expect(result.workflowId).toBe(workflow.id);

@@ -27,7 +27,7 @@ function output(command: string, args: string[]) {
 function detectPython(): string {
   const candidates =
     process.platform === "win32"
-      ? ["py", "python"]
+      ? ["python", "py"]
       : ["python3", "python"];
 
   for (const candidate of candidates) {

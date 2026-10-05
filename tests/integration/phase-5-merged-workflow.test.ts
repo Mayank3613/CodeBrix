@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
 import {
   GraphValidator,
   BlockDefinitionRegistry,
@@ -15,6 +15,18 @@ import type { WorkflowGraph } from "@codebrix/types";
 
 describe("Phase 5 Acceptance Gate: Merged Branch Robustness & End-to-End Execution", () => {
   let service: EngineWorkflowService;
+  const originalFetch = globalThis.fetch;
+
+  beforeAll(() => {
+    // Prevent accidental connection to ambient localhost dev server during unit tests
+    globalThis.fetch = async () => {
+      throw new Error("Dev server unavailable in unit test environment");
+    };
+  });
+
+  afterAll(() => {
+    globalThis.fetch = originalFetch;
+  });
 
   beforeEach(() => {
     service = new EngineWorkflowService();

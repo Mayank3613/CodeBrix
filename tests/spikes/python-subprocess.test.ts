@@ -29,7 +29,7 @@ describe("Phase 0 Spike: Python Subprocess JSON Protocol", () => {
     if (fs.existsSync(venvUnix)) return venvUnix;
 
     // 3. Fallback candidates
-    const candidates = process.platform === "win32" ? ["py", "python"] : ["python3", "python"];
+    const candidates = process.platform === "win32" ? ["python", "py"] : ["python3", "python"];
     for (const cmd of candidates) {
       const res = spawnSync(cmd, ["--version"], { encoding: "utf-8" });
       if (res.status === 0) {

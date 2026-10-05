@@ -37,10 +37,17 @@ export class SubprocessSession {
         return reject(new Error(`Failed to write temp script file: ${String(err)}`));
       }
 
-      // 2. Spawn process with PYTHONUNBUFFERED=1
+      // 2. Spawn process with PYTHONUNBUFFERED=1 and cross-platform PYTHONPATH
+      const sep = process.platform === "win32" ? ";" : ":";
+      const existingPyPath = process.env["PYTHONPATH"] || "";
+      const pythonPath = existingPyPath
+        ? `${this.cwd}${sep}${existingPyPath}`
+        : this.cwd;
+
       const env = {
         ...process.env,
         PYTHONUNBUFFERED: "1",
+        PYTHONPATH: pythonPath,
         ...this.extraEnv,
       };
 
