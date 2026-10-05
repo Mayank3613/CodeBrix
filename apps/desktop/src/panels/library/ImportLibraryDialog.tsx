@@ -124,9 +124,9 @@ export default function ImportLibraryDialog({ isOpen, onClose }: ImportLibraryDi
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800/50 hover:bg-slate-800"
+            className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800/50 hover:bg-slate-800 transition-colors"
           >
-            ✕
+            ×
           </button>
         </div>
 
@@ -202,12 +202,12 @@ export default function ImportLibraryDialog({ isOpen, onClose }: ImportLibraryDi
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-slate-300">Validation Status</span>
               {parsedManifest.isValid ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-950/80 border border-emerald-500/50 text-emerald-400 flex items-center gap-1">
-                  ✓ Valid Manifest
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950/80 border border-emerald-500/40 text-emerald-400">
+                  Valid Manifest
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-rose-950/80 border border-rose-500/50 text-rose-400 flex items-center gap-1">
-                  ✗ Validation Error
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-rose-950/80 border border-rose-500/40 text-rose-400">
+                  Validation Error
                 </span>
               )}
             </div>

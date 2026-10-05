@@ -148,4 +148,21 @@ describe("BlockRegistry (D1-1.3)", () => {
     // model -> dataframe is incompatible
     expect(registry.checkPortCompatibility("model", "dataframe")).toBe(false);
   });
+
+  it("supports unregister and registerOrUpdate for dynamic blocks", () => {
+    registry.register(sampleDefinition);
+    expect(registry.has("data.csv_reader")).toBe(true);
+
+    // registerOrUpdate allows updating without throwing DuplicateBlockError
+    const updated = { ...sampleDefinition, name: "Updated CSV Reader" };
+    expect(() => registry.registerOrUpdate(updated)).not.toThrow();
+    expect(registry.get("data.csv_reader")?.name).toBe("Updated CSV Reader");
+
+    // unregister removes the definition
+    const removed = registry.unregister("data.csv_reader");
+    expect(removed).toBe(true);
+    expect(registry.has("data.csv_reader")).toBe(false);
+    expect(registry.list()).toHaveLength(0);
+  });
 });
+

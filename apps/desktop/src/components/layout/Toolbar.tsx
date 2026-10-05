@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { CONTRACT_VERSION } from "@codebrix/shared";
 import { workflowService } from "../../services";
 import { stopPythonExecution } from "../../services/tauriPythonRuntime";
 import {
@@ -20,6 +21,19 @@ import {
   restoreFromRecoverySnapshot,
 } from "../../project/autosave";
 import { readProjectFile } from "../../project/fileIo";
+import {
+  PlayIcon,
+  StopIcon,
+  CheckIcon,
+  FolderIcon,
+  SaveIcon,
+  CodeIcon,
+  ChevronDownIcon,
+  AlertTriangleIcon,
+  SlidersIcon,
+  LayersIcon,
+  TerminalIcon,
+} from "../common/Icons";
 
 export default function Toolbar() {
   const [isValidating, setIsValidating] = useState(false);
@@ -41,6 +55,8 @@ export default function Toolbar() {
   const togglePalette = useUiStore((s) => s.togglePalette);
   const isPropertiesOpen = useUiStore((s) => s.isPropertiesOpen);
   const toggleProperties = useUiStore((s) => s.toggleProperties);
+  const isOutputOpen = useUiStore((s) => s.isOutputOpen);
+  const toggleOutput = useUiStore((s) => s.toggleOutput);
 
   const projectName = useProjectStore((s) => s.projectName);
   const setProjectName = useProjectStore((s) => s.setProjectName);
@@ -266,9 +282,10 @@ export default function Toolbar() {
     <>
       {/* Recovery Alert Banner if unsaved session exists */}
       {recoverySnapshot && (
-        <div className="bg-amber-950/90 border-b border-amber-600/80 px-4 py-2 flex items-center justify-between text-xs text-amber-200">
+        <div className="bg-amber-950/80 backdrop-blur-md border-b border-amber-600/60 px-4 py-1.5 flex items-center justify-between text-xs text-amber-200 z-50">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-amber-400">⚠️ Crash Recovery:</span>
+            <AlertTriangleIcon size={14} className="text-amber-400" />
+            <span className="font-semibold text-amber-300">Crash Recovery:</span>
             <span>
               Unsaved session detected from {new Date(recoverySnapshot.savedAt).toLocaleTimeString()} ({recoverySnapshot.projectName}).
             </span>
@@ -276,13 +293,13 @@ export default function Toolbar() {
           <div className="flex items-center gap-2">
             <button
               onClick={handleRestoreRecovery}
-              className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold transition-all"
+              className="px-2.5 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition-colors"
             >
               Restore Session
             </button>
             <button
               onClick={dismissRecovery}
-              className="px-2 py-1 rounded bg-slate-900/80 hover:bg-slate-800 text-amber-300 transition-all"
+              className="px-2 py-0.5 rounded bg-slate-900/80 hover:bg-slate-800 text-amber-300 text-xs transition-colors"
             >
               Dismiss
             </button>
@@ -290,213 +307,285 @@ export default function Toolbar() {
         </div>
       )}
 
-      <div className="h-12 px-5 bg-slate-900/60 backdrop-blur-md border-b border-slate-800 flex items-center justify-between shrink-0 select-none">
-        {/* Left controls: Project operations + View toggles */}
-        <div className="flex items-center gap-1.5">
-          <div className="flex items-center gap-1 bg-slate-950/60 p-0.5 rounded-lg border border-slate-800 relative" ref={recentMenuRef}>
+      {/* Main Unified IDE Toolbar Header */}
+      <header className="cb-toolbar">
+        {/* Left: Brand Identity + Project & File Operations */}
+        <div className="flex items-center gap-2">
+          {/* Studio Brand Mark */}
+          <div className="flex items-center gap-2 pr-1">
+            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-cyan-500 via-indigo-600 to-violet-600 flex items-center justify-center shadow-[0_0_16px_rgba(6,182,212,0.4)] font-mono font-bold text-[11px] text-white tracking-tight border border-cyan-300/30">
+              CB
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-xs text-white tracking-tight hidden sm:inline">
+                CodeBrix
+              </span>
+              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/25">
+                v{CONTRACT_VERSION}
+              </span>
+            </div>
+          </div>
+
+          <div className="cb-toolbar-divider" />
+
+          {/* Active Project Pill */}
+          <div
+            className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/10 text-[11px] max-w-[190px] truncate shadow-inner"
+            title={currentFilePath || projectName}
+          >
+            <div
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                isDirty
+                  ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.9)] animate-pulse"
+                  : "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
+              }`}
+            />
+            <span className="text-slate-200 font-medium truncate">{projectName}</span>
+            {isDirty && (
+              <span className="text-[10px] text-amber-400 font-mono font-bold">*</span>
+            )}
+          </div>
+
+          <div className="cb-toolbar-divider" />
+
+          {/* File Operations */}
+          <div className="flex items-center gap-0.5 bg-white/[0.03] p-0.5 rounded-lg border border-white/10" ref={recentMenuRef}>
             <button
               onClick={handleNewProject}
-              className="px-2 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors"
+              className="cb-toolbar-btn text-[11px]"
               title="Create a new blank project"
             >
               New
             </button>
+
             <button
               onClick={handleOpenProject}
-              className="px-2 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors"
+              className="cb-toolbar-btn text-[11px]"
               title="Open a .cbx project file"
             >
-              Open
+              <FolderIcon size={12} />
+              <span>Open</span>
             </button>
 
             {/* Recent projects dropdown */}
-            <button
-              onClick={() => setIsRecentOpen(!isRecentOpen)}
-              className="px-1.5 py-1 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
-              title="Recent projects"
-            >
-              ▾
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setIsRecentOpen(!isRecentOpen)}
+                className="cb-toolbar-btn px-1 text-[11px]"
+                title="Recent projects"
+              >
+                <ChevronDownIcon size={10} />
+              </button>
 
-            {isRecentOpen && (
-              <div className="absolute left-0 top-full mt-1.5 w-64 bg-slate-900 border border-slate-700/80 rounded-lg shadow-2xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                <div className="px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                  Recent Projects
+              {isRecentOpen && (
+                <div className="absolute left-0 top-full mt-2 w-64 bg-slate-900/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl py-1 z-50">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-cyan-400 uppercase tracking-wider border-b border-white/10 flex items-center justify-between">
+                    <span>Recent Projects</span>
+                    <span className="text-[9px] font-mono text-slate-500">{recentProjects.length}</span>
+                  </div>
+                  {recentProjects.length > 0 ? (
+                    <>
+                      {recentProjects.map((p, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleOpenRecent(p)}
+                          className="w-full text-left px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-cyan-500/15 font-mono truncate block transition-colors"
+                          title={p}
+                        >
+                          {p.split("/").pop() || p}
+                        </button>
+                      ))}
+                      <div className="border-t border-white/10 mt-1 pt-1 px-3 py-1">
+                        <button
+                          onClick={clearRecentProjects}
+                          className="text-[10px] text-slate-500 hover:text-rose-400 transition-colors"
+                        >
+                          Clear History
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="px-3 py-2 text-xs text-slate-500 italic">No recent projects</div>
+                  )}
                 </div>
-                {recentProjects.length > 0 ? (
-                  <>
-                    {recentProjects.map((p, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleOpenRecent(p)}
-                        className="w-full text-left px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-indigo-600/30 font-mono truncate block"
-                        title={p}
-                      >
-                        {p.split("/").pop() || p}
-                      </button>
-                    ))}
-                    <div className="border-t border-slate-800 mt-1 pt-1 px-3 py-1">
-                      <button
-                        onClick={clearRecentProjects}
-                        className="text-[10px] text-slate-500 hover:text-slate-300"
-                      >
-                        Clear Recent History
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="px-3 py-2 text-xs text-slate-500 italic">No recent projects</div>
-                )}
-              </div>
-            )}
+              )}
+            </div>
 
             <button
               onClick={handleSaveProject}
-              className="px-2 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors flex items-center gap-1"
+              className="cb-toolbar-btn text-[11px]"
               title="Save project file (.cbx)"
             >
+              <SaveIcon size={12} />
               <span>Save</span>
-              {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
             </button>
+
             <button
               onClick={handleSaveAsProject}
-              className="px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors"
-              title="Save project as a new file"
+              className="cb-toolbar-btn text-[11px]"
+              title="Save as a new file"
             >
               Save As
             </button>
+
             <button
               onClick={handleImportProject}
-              className="px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors"
+              className="cb-toolbar-btn text-[11px]"
               title="Import .cbx project"
             >
               Import
             </button>
+
             <button
               onClick={handleExportProject}
-              className="px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors"
+              className="cb-toolbar-btn text-[11px]"
               title="Export project as .cbx"
             >
               Export
             </button>
+
             <button
               onClick={handleExportPython}
-              className="px-2 py-1 text-xs text-indigo-300 hover:text-indigo-200 hover:bg-indigo-950/60 rounded transition-colors"
+              className="cb-toolbar-btn text-[11px] text-cyan-300 hover:text-cyan-200 hover:bg-cyan-950/40"
               title="Export standalone Python script (.py)"
             >
-              Export .py
+              <CodeIcon size={12} />
+              <span>Export .py</span>
             </button>
           </div>
 
-          <div className="w-px h-4 bg-slate-800 mx-1" />
+          <div className="cb-toolbar-divider" />
 
-          <button
-            onClick={togglePalette}
-            className={`px-2.5 py-1 text-xs rounded transition-colors ${
-              isPaletteOpen
-                ? "bg-slate-800 text-white font-medium"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            {isPaletteOpen ? "Hide Palette" : "Show Palette"}
-          </button>
+          {/* Panel View Toggles (Tactile Bento Style) */}
+          <div className="flex items-center gap-1 bg-white/[0.03] p-0.5 rounded-lg border border-white/10">
+            <button
+              onClick={togglePalette}
+              className={`cb-toolbar-btn px-2.5 py-1 rounded-md text-[11px] ${
+                isPaletteOpen
+                  ? "bg-white/[0.12] text-white border border-white/25 shadow-[0_0_12px_rgba(255,255,255,0.12)]"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+              title="Toggle Block Palette"
+            >
+              <LayersIcon size={12} className={isPaletteOpen ? "text-cyan-300" : "text-slate-400"} />
+              <span>Palette</span>
+            </button>
 
-          <button
-            onClick={toggleProperties}
-            className={`px-2.5 py-1 text-xs rounded transition-colors ${
-              isPropertiesOpen
-                ? "bg-slate-800 text-white font-medium"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            {isPropertiesOpen ? "Hide Properties" : "Show Properties"}
-          </button>
+            <button
+              onClick={toggleProperties}
+              className={`cb-toolbar-btn px-2.5 py-1 rounded-md text-[11px] ${
+                isPropertiesOpen
+                  ? "bg-white/[0.12] text-white border border-white/25 shadow-[0_0_12px_rgba(255,255,255,0.12)]"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+              title="Toggle Properties Panel"
+            >
+              <SlidersIcon size={12} className={isPropertiesOpen ? "text-cyan-300" : "text-slate-400"} />
+              <span>Properties</span>
+            </button>
 
-          <div className="w-px h-4 bg-slate-800 mx-1" />
-          <span className="text-[11px] text-slate-500 font-mono">
-            Nodes: {Object.keys(graph.blocks).length} | Edges: {graph.connections.length}
-          </span>
+            <button
+              onClick={toggleOutput}
+              className={`cb-toolbar-btn px-2.5 py-1 rounded-md text-[11px] ${
+                isOutputOpen
+                  ? "bg-white/[0.12] text-white border border-white/25 shadow-[0_0_12px_rgba(255,255,255,0.12)]"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+              title="Toggle Terminal / Output Panel"
+            >
+              <TerminalIcon size={12} className={isOutputOpen ? "text-cyan-300" : "text-slate-400"} />
+              <span>Terminal</span>
+            </button>
+          </div>
         </div>
 
-        {/* Right controls: Validation & Execution */}
-        <div className="flex items-center gap-3">
-          {/* Status Message */}
+        {/* Center: Graph Stats */}
+        <div className="hidden lg:flex items-center gap-2 text-[11px] font-mono text-slate-400 bg-white/[0.03] px-2.5 py-1 rounded-lg border border-white/5">
+          <span className="text-cyan-400 font-semibold">{Object.keys(graph.blocks).length}</span>
+          <span>nodes</span>
+          <span className="text-slate-600">•</span>
+          <span className="text-emerald-400 font-semibold">{graph.connections.length}</span>
+          <span>edges</span>
           {statusMessage && (
-            <span className="text-[11px] font-mono text-indigo-300 truncate max-w-xs">
-              {statusMessage}
-            </span>
+            <>
+              <span className="text-slate-600">•</span>
+              <span className="text-slate-300 truncate max-w-xs">{statusMessage}</span>
+            </>
           )}
+        </div>
 
-          {/* Validation Status Indicator */}
+        {/* Right: Validation & Execution Controls */}
+        <div className="flex items-center gap-2">
+          {/* Validation Status Badge */}
           {validationResult && (
             <div
-              className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border ${
+              className={`flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 rounded-lg border ${
                 validationResult.valid
-                  ? "bg-emerald-950/40 text-emerald-300 border-emerald-800/60"
-                  : "bg-rose-950/40 text-rose-300 border-rose-800/60"
+                  ? "bg-emerald-950/50 text-emerald-300 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                  : "bg-rose-950/50 text-rose-300 border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.2)]"
               }`}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  validationResult.valid ? "bg-emerald-400" : "bg-rose-400"
+                  validationResult.valid
+                    ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]"
+                    : "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]"
                 }`}
               />
-              <span>
+              <span className="font-medium">
                 {validationResult.valid
-                  ? "Graph Valid"
-                  : `${validationResult.errors.length} issue(s)`}
+                  ? "Pipeline Valid"
+                  : `${validationResult.errors.length} issue${validationResult.errors.length > 1 ? "s" : ""}`}
               </span>
             </div>
           )}
 
+          {/* Validate Button */}
           <button
             onClick={handleValidate}
             disabled={isValidating}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 active:scale-95 transition-all border border-slate-700/80 rounded-lg disabled:opacity-50"
+            className="cb-toolbar-btn border border-white/10 bg-white/[0.04] hover:bg-white/10 text-[11px] px-3 py-1 rounded-lg text-slate-300 hover:text-white"
+            title="Validate graph consistency, type contracts, and required parameters"
           >
-            <span>✓</span>
-            <span>{isValidating ? "Validating..." : "Validate Graph"}</span>
+            <CheckIcon size={12} className="text-cyan-400" />
+            <span>{isValidating ? "Validating..." : "Validate"}</span>
           </button>
 
-          {/* Run Pipeline Button */}
+          {/* Run Pipeline Button (Emerald Glow) */}
           <button
             onClick={handleRun}
             disabled={runState === "running" || isValidating}
-            className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-              runState === "running" || isValidating
-                ? "bg-slate-800 text-slate-500 border border-slate-700/50 cursor-not-allowed opacity-50"
-                : "text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 active:scale-95 shadow-md shadow-emerald-600/20 cursor-pointer"
-            }`}
-            title={runState === "running" ? "Pipeline execution is in progress" : "Execute Python workflow"}
+            className="cb-toolbar-btn--primary text-[11px] flex items-center gap-1.5 cursor-pointer shadow-lg"
+            title={runState === "running" ? "Execution in progress..." : "Run Python Machine Learning Pipeline"}
           >
-            <span>▶</span>
+            <PlayIcon size={12} className="text-white" />
             <span>{isValidating ? "Validating..." : "Run Pipeline"}</span>
           </button>
 
-          {/* Stop Execution Button */}
+          {/* Stop Button (Crimson Red Glow) */}
           <button
             onClick={handleStop}
             disabled={runState !== "running"}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            className={
               runState === "running"
-                ? "text-white bg-rose-600 hover:bg-rose-500 active:scale-95 shadow-md shadow-rose-600/30 animate-pulse cursor-pointer"
-                : "bg-slate-900/60 text-slate-600 border border-slate-800/80 cursor-not-allowed opacity-40"
-            }`}
-            title={runState === "running" ? "Stop active Python execution" : "No active execution running"}
+                ? "cb-toolbar-btn--danger cursor-pointer animate-pulse text-[11px] flex items-center gap-1"
+                : "cb-toolbar-btn text-slate-600 border border-white/5 bg-transparent cursor-not-allowed opacity-40 text-[11px]"
+            }
+            title="Stop running Python pipeline"
           >
-            <span>■</span>
+            <StopIcon size={11} />
             <span>Stop</span>
           </button>
 
           <button
             onClick={handleReset}
-            className="px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors rounded-lg"
-            title="Reset to default Iris mock pipeline"
+            className="cb-toolbar-btn text-slate-500 hover:text-cyan-300 text-[11px] px-2"
+            title="Reset to default mock pipeline"
           >
             Reset
           </button>
         </div>
-      </div>
+      </header>
     </>
   );
 }

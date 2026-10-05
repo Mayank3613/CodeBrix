@@ -54,6 +54,26 @@ export class BlockRegistry {
   }
 
   /**
+   * Register or update an existing block definition (useful for custom blocks).
+   */
+  public registerOrUpdate(definition: BlockDefinition): void {
+    if (!isValidBlockDefinition(definition)) {
+      throw new InvalidBlockDefinitionError(
+        `Definition must have id, name, category, version, inputs array, and outputs array.`
+      );
+    }
+
+    this.blocks.set(definition.id, Object.freeze({ ...definition }));
+  }
+
+  /**
+   * Unregister a block definition by its ID.
+   */
+  public unregister(id: string): boolean {
+    return this.blocks.delete(id);
+  }
+
+  /**
    * Retrieve a block definition by its ID.
    */
   public get(id: string): BlockDefinition | undefined {

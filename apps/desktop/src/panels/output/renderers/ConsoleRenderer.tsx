@@ -47,7 +47,7 @@ export default function ConsoleRenderer({
                     <span className="text-slate-500 text-[10px] font-mono">
                       [{log.timestamp ? log.timestamp.slice(11, 19) : "--:--:--"}]
                     </span>
-                    <span>✖ Error: {log.message}</span>
+                    <span>Error: {log.message}</span>
                   </div>
                   {log.traceback && (
                     <pre className="p-2.5 bg-black/60 rounded border border-rose-950 text-[11px] text-rose-200/90 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">
@@ -82,7 +82,7 @@ export default function ConsoleRenderer({
                       <span className="text-slate-500 text-[10px] font-mono">
                         [{log.timestamp ? log.timestamp.slice(11, 19) : "--:--:--"}]
                       </span>
-                      <span>✖ {rawErrorJson.message || "Runtime Exception"}</span>
+                      <span>{rawErrorJson.message || "Runtime Exception"}</span>
                     </div>
                     {rawErrorJson.traceback && (
                       <pre className="p-2.5 bg-black/60 rounded border border-rose-950 text-[11px] text-rose-200/90 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto">

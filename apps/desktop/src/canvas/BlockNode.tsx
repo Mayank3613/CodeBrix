@@ -1,9 +1,10 @@
-import { memo } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { BlockNodeData } from "./adapter";
 import { blockRegistry } from "../registry";
-import { useValidationStore, useExecutionStore } from "../stores";
+import { useValidationStore, useExecutionStore, useWorkflowStore } from "../stores";
 import type { PortType } from "@codebrix/types";
+import { CheckIcon, CloseIcon, AlertTriangleIcon } from "../components/common/Icons";
 
 // Port type color mapping
 const PORT_COLORS: Record<PortType, { bg: string; border: string; text: string }> = {
@@ -13,10 +14,10 @@ const PORT_COLORS: Record<PortType, { bg: string; border: string; text: string }
   model: { bg: "bg-purple-500", border: "border-purple-300", text: "text-purple-300" },
   scalar: { bg: "bg-emerald-500", border: "border-emerald-300", text: "text-emerald-300" },
   number: { bg: "bg-emerald-500", border: "border-emerald-300", text: "text-emerald-300" },
-  string: { bg: "bg-amber-500", border: "border-amber-300", text: "text-amber-300" },
+  string: { bg: "bg-slate-300", border: "border-slate-100", text: "text-slate-200" },
   boolean: { bg: "bg-rose-500", border: "border-rose-300", text: "text-rose-300" },
   array: { bg: "bg-teal-500", border: "border-teal-300", text: "text-teal-300" },
-  file: { bg: "bg-yellow-500", border: "border-yellow-300", text: "text-yellow-300" },
+  file: { bg: "bg-sky-500", border: "border-sky-300", text: "text-sky-300" },
   figure: { bg: "bg-pink-500", border: "border-pink-300", text: "text-pink-300" },
   dict: { bg: "bg-violet-500", border: "border-violet-300", text: "text-violet-300" },
   any: { bg: "bg-slate-400", border: "border-slate-200", text: "text-slate-200" },
@@ -31,6 +32,9 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
   const errors = useValidationStore((s) => s.errorMapByBlockId[id] || EMPTY_ERRORS);
   const blockStatus = useExecutionStore((s) => s.blockStatuses[id] || nodeData.state || "idle");
 
+  const blockInstance = useWorkflowStore((s) => s.graph.blocks[id]);
+  const updateBlockLabel = useWorkflowStore((s) => s.updateBlockLabel);
+
   const inputs = def?.inputs || [];
   const outputs = def?.outputs || [];
 
@@ -39,64 +43,150 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
   const isSuccess = blockStatus === "success";
   const isFailed = blockStatus === "failed";
 
+  // Loaded dataset name detection
+  const config = blockInstance?.config || (nodeData as unknown as { config?: Record<string, unknown> }).config || {};
+  const rawPath = (config.filePath || config.filepath || config.file || config.path || config.dataset || config.csvPath || "") as string;
+  const datasetName = typeof rawPath === "string" && rawPath.trim()
+    ? rawPath.split(/[/\\]/).pop()?.replace(/^["']+|["']+$/g, "")
+    : null;
+
+  // Inline renaming in playground
+  const currentLabel = blockInstance?.label || nodeData.label || def?.name || nodeData.definitionId;
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(currentLabel);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setEditValue(currentLabel);
+  }, [currentLabel]);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleSaveLabel = () => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== currentLabel) {
+      updateBlockLabel(id, trimmed);
+    }
+    setIsEditing(false);
+  };
+
   // Dynamic visual styling combining selection, execution status, and validation issues
-  let borderAndRingClass = "border-slate-800 hover:border-slate-600";
+  let borderAndRingClass = "border-white/12 hover:border-white/25";
   if (hasError) {
-    borderAndRingClass = "border-rose-500 ring-2 ring-rose-500/40 shadow-lg shadow-rose-500/20";
+    borderAndRingClass = "border-rose-500/80 ring-2 ring-rose-500/40 shadow-[0_0_20px_rgba(244,63,94,0.3)]";
   } else if (isRunning) {
-    borderAndRingClass = "border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/25 animate-pulse";
+    borderAndRingClass = "border-cyan-400 ring-2 ring-cyan-400/50 shadow-[0_0_24px_rgba(6,182,212,0.4)] animate-pulse";
   } else if (isSuccess) {
-    borderAndRingClass = "border-emerald-500/90 ring-1 ring-emerald-500/40 shadow-emerald-500/10";
+    borderAndRingClass = "border-emerald-500/80 ring-1 ring-emerald-500/40 shadow-[0_0_16px_rgba(16,185,129,0.25)]";
   } else if (isFailed) {
-    borderAndRingClass = "border-rose-500 ring-2 ring-rose-500/60 shadow-lg shadow-rose-500/30";
+    borderAndRingClass = "border-rose-500 ring-2 ring-rose-500/60 shadow-[0_0_24px_rgba(244,63,94,0.4)]";
   }
 
   const selectionClass = selected
-    ? "outline-2 outline-indigo-400 outline-offset-2 shadow-indigo-500/30 shadow-xl"
+    ? "ring-2 ring-cyan-400 shadow-[0_0_24px_rgba(6,182,212,0.4)] border-cyan-400"
     : "";
 
   return (
     <div
-      className={`min-w-[220px] rounded-xl backdrop-blur-md bg-slate-900/95 border transition-all text-xs select-none shadow-xl ${borderAndRingClass} ${selectionClass}`}
+      className={`min-w-[225px] rounded-2xl backdrop-blur-2xl bg-[#0e1320]/82 border transition-all text-xs select-none shadow-[0_16px_36px_-6px_rgba(0,0,0,0.65),inset_0_1px_1px_0_rgba(255,255,255,0.16)] ${borderAndRingClass} ${selectionClass}`}
     >
       {/* Node Header */}
-      <div className="px-3 py-2 border-b border-slate-800/80 bg-gradient-to-r from-slate-800/80 to-slate-900/60 rounded-t-xl flex items-center justify-between">
+      <div className="px-3.5 py-2.5 border-b border-white/10 bg-gradient-to-r from-white/[0.07] to-transparent rounded-t-2xl flex items-center justify-between">
         <div className="flex items-center gap-2 truncate">
           <span
-            className={`w-2 h-2 rounded-full ${
+            className={`w-2 h-2 rounded-full shrink-0 ${
               isRunning
-                ? "bg-amber-400 animate-ping"
+                ? "bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.9)] animate-ping"
                 : isSuccess
-                ? "bg-emerald-400"
+                ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
                 : isFailed
-                ? "bg-rose-400"
+                ? "bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]"
                 : hasError
                 ? "bg-rose-500"
-                : "bg-indigo-400"
+                : "bg-slate-400"
             }`}
           />
-          <span className="font-semibold text-white tracking-tight truncate">
-            {nodeData.label || def?.name || nodeData.definitionId}
-          </span>
+
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={handleSaveLabel}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") handleSaveLabel();
+                if (e.key === "Escape") {
+                  setEditValue(currentLabel);
+                  setIsEditing(false);
+                }
+              }}
+              className="bg-black/70 border border-cyan-400 rounded px-1.5 py-0.5 text-xs text-white font-semibold outline-none w-32 shadow-inner"
+            />
+          ) : (
+            <div
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                setIsEditing(true);
+              }}
+              className="flex items-center gap-1.5 group/label cursor-text truncate max-w-[140px]"
+              title="Double-click to rename this block"
+            >
+              <span className="font-semibold text-white tracking-tight truncate">
+                {currentLabel}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditing(true);
+                }}
+                className="opacity-0 group-hover/label:opacity-100 text-slate-400 hover:text-cyan-300 transition-opacity p-0.5 cursor-pointer"
+                title="Rename block"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
-        <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-950/80 text-slate-400 border border-slate-800">
+
+        <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.06] text-slate-300 border border-white/10">
           {def?.category || "block"}
         </span>
       </div>
 
       {/* Node Content & Ports */}
       <div className="p-3 space-y-2">
-        {/* Status bar slot */}
-        <div className="flex items-center justify-between text-[10px] font-mono border-b border-slate-800/50 pb-1.5">
-          <span className="text-slate-500 truncate max-w-[110px]" title={id}>
-            {id}
-          </span>
+        {/* Status bar slot - Shows dataset name or clean description, NOT random blk-rf */}
+        <div className="flex items-center justify-between text-[10px] font-mono border-b border-white/5 pb-1.5">
+          {datasetName ? (
+            <div
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 font-mono text-[9px] truncate max-w-[130px] shadow-sm"
+              title={`Loaded dataset: ${datasetName}`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse shrink-0" />
+              <span className="truncate font-semibold">{datasetName}</span>
+            </div>
+          ) : (
+            <span className="text-slate-400 truncate max-w-[120px] text-[10px]" title={def?.name || "Block"}>
+              {def?.name || "Block"}
+            </span>
+          )}
 
           <div className="flex items-center gap-1.5 font-semibold">
             {isRunning ? (
-              <span className="text-amber-400 flex items-center gap-1">
+              <span className="text-cyan-400 flex items-center gap-1">
                 <svg
-                  className="animate-spin h-2.5 w-2.5 text-amber-400"
+                  className="animate-spin h-2.5 w-2.5 text-cyan-400"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -119,12 +209,12 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
               </span>
             ) : isSuccess ? (
               <span className="text-emerald-400 flex items-center gap-1">
-                <span>✓</span>
+                <CheckIcon size={11} />
                 <span>Completed</span>
               </span>
             ) : isFailed ? (
               <span className="text-rose-400 flex items-center gap-1">
-                <span>✗</span>
+                <CloseIcon size={10} />
                 <span>Failed</span>
               </span>
             ) : (
@@ -138,14 +228,16 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
 
         {/* Validation Error banner if present */}
         {hasError && (
-          <div className="p-1.5 rounded bg-rose-950/70 border border-rose-800/90 text-[10px] text-rose-300 leading-tight">
-            <span className="font-bold mr-1">⚠</span>
-            <span>{errors[0]?.message}</span>
-            {errors.length > 1 && (
-              <span className="text-rose-400 font-mono ml-1 text-[9px]">
-                (+{errors.length - 1} more)
-              </span>
-            )}
+          <div className="p-1.5 rounded bg-rose-950/70 border border-rose-800/90 text-[10px] text-rose-300 leading-tight flex items-start gap-1">
+            <AlertTriangleIcon size={12} className="shrink-0 text-rose-400 mt-0.5" />
+            <div>
+              <span>{errors[0]?.message}</span>
+              {errors.length > 1 && (
+                <span className="text-rose-400 font-mono ml-1 text-[9px]">
+                  (+{errors.length - 1} more)
+                </span>
+              )}
+            </div>
           </div>
         )}
 

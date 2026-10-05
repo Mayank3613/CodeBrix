@@ -44,6 +44,39 @@ describe("Zustand Stores (D1-1.5)", () => {
       useWorkflowStore.getState().removeBlock(blockId);
       expect(useWorkflowStore.getState().graph.blocks[blockId]).toBeUndefined();
     });
+
+    it("supports undo and redo for block deletion and mutations", () => {
+      const dummyDef: BlockDefinition = {
+        id: "test.dummy2",
+        name: "Dummy Block 2",
+        category: "ml",
+        version: "0.1.0",
+        description: "Test dummy 2",
+        inputs: [],
+        outputs: [],
+      };
+
+      // Initial clean slate
+      useWorkflowStore.getState().clearWorkflow();
+      expect(useWorkflowStore.getState().canUndo()).toBe(true); // clearing is an action
+
+      // Add a block
+      const blockId = useWorkflowStore.getState().addBlock(dummyDef, { x: 50, y: 50 });
+      expect(useWorkflowStore.getState().graph.blocks[blockId]).toBeDefined();
+
+      // Delete the block
+      useWorkflowStore.getState().removeBlock(blockId);
+      expect(useWorkflowStore.getState().graph.blocks[blockId]).toBeUndefined();
+
+      // Undo deletion with Ctrl+Z equivalent
+      useWorkflowStore.getState().undo();
+      expect(useWorkflowStore.getState().graph.blocks[blockId]).toBeDefined();
+      expect(useWorkflowStore.getState().graph.blocks[blockId]?.label).toBe("Dummy Block 2");
+
+      // Redo deletion with Ctrl+Y equivalent
+      useWorkflowStore.getState().redo();
+      expect(useWorkflowStore.getState().graph.blocks[blockId]).toBeUndefined();
+    });
   });
 
   describe("uiStore", () => {

@@ -1,43 +1,299 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────
+   CodeBrix IDE – Bento Grid & Glassmorphism Tokens
+   ───────────────────────────────────────────────────── */
 :root {
+  /* Typography */
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   color-scheme: dark;
+
+  /* Surface & Background Palette (Authentic Translucent Glassmorphism) */
+  --cb-bg-deep: #06080e;
+  --cb-bg-base: #0a0d17;
+  --cb-bg-surface: rgba(12, 16, 28, 0.58);
+  --cb-bg-surface-hover: rgba(18, 24, 40, 0.68);
+  --cb-bg-elevated: rgba(22, 28, 48, 0.55);
+  --cb-bg-glass: rgba(14, 18, 32, 0.48);
+  --cb-bg-glass-card: rgba(255, 255, 255, 0.04);
+
+  /* Distinctive Crisp Glass Borders & Specular Rim Lighting */
+  --cb-border: rgba(255, 255, 255, 0.12);
+  --cb-border-subtle: rgba(255, 255, 255, 0.07);
+  --cb-border-highlight: rgba(255, 255, 255, 0.22);
+  --cb-border-accent: rgba(99, 102, 241, 0.4);
+
+  /* Premium Refined Color Accents (Cool Cyan, Electric Indigo, Mint Emerald, Coral Red) */
+  --cb-cyan: #06b6d4;
+  --cb-cyan-light: #38bdf8;
+  --cb-cyan-glow: rgba(6, 182, 212, 0.2);
+
+  --cb-indigo: #6366f1;
+  --cb-indigo-light: #818cf8;
+  --cb-indigo-glow: rgba(99, 102, 241, 0.2);
+
+  --cb-emerald: #10b981;
+  --cb-emerald-light: #34d399;
+  --cb-emerald-glow: rgba(16, 185, 129, 0.2);
+  --cb-emerald-border: rgba(16, 185, 129, 0.4);
+
+  --cb-red: #f43f5e;
+  --cb-red-light: #fb7185;
+  --cb-red-glow: rgba(244, 63, 94, 0.2);
+  --cb-red-border: rgba(244, 63, 94, 0.4);
+
+  /* Subtle Warm Amber (Strictly for warnings / attention, not everywhere!) */
+  --cb-amber: #f59e0b;
+  --cb-amber-light: #fbbf24;
+  --cb-amber-glow: rgba(245, 158, 11, 0.15);
+
+  /* Text Hierarchy */
+  --cb-text-primary: #f8fafc;
+  --cb-text-secondary: #94a3b8;
+  --cb-text-muted: #64748b;
+
+  /* Glassmorphism Blur Levels */
+  --cb-blur: 24px;
+  --cb-blur-heavy: 32px;
+
+  /* Panel Sizing */
+  --palette-width: 280px;
+  --palette-min: 200px;
+  --palette-max: 420px;
+
+  --properties-width: 280px;
+  --properties-min: 200px;
+  --properties-max: 420px;
+
+  --output-height: 280px;
+  --output-min: 120px;
+  --output-max: 60vh;
+
+  /* Bento Frame Radii */
+  --cb-radius: 16px;
+  --cb-radius-sm: 8px;
+  --cb-radius-md: 12px;
+  --cb-radius-lg: 16px;
+  --cb-radius-xl: 20px;
+
+  /* Specular Rim Light & Deep Drop Shadows */
+  --cb-shadow-panel: 
+    0 20px 45px -8px rgba(0, 0, 0, 0.65), 
+    0 0 0 1px rgba(255, 255, 255, 0.08), 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 0 16px 0 rgba(255, 255, 255, 0.02);
+  --cb-shadow-card: 
+    0 8px 24px -2px rgba(0, 0, 0, 0.45), 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.14);
+
+  /* Transitions */
+  --cb-transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ─── Global Reset & Atmosphere ───────────────────── */
 body {
   margin: 0;
   padding: 0;
-  background-color: #090d16;
-  color: #f1f5f9;
+  background-color: var(--cb-bg-deep);
+  color: var(--cb-text-primary);
   overflow: hidden;
   user-select: none;
+  -webkit-font-smoothing: antialiased;
+  /* Radiant ambient light sources that shine through translucent frosted glass */
+  background-image: 
+    radial-gradient(circle 650px at 15% 15%, rgba(99, 102, 241, 0.16), transparent 60%),
+    radial-gradient(circle 600px at 85% 25%, rgba(6, 182, 212, 0.14), transparent 60%),
+    radial-gradient(circle 750px at 50% 80%, rgba(139, 92, 246, 0.13), transparent 60%),
+    radial-gradient(circle 500px at 70% 90%, rgba(16, 185, 129, 0.11), transparent 55%),
+    linear-gradient(180deg, #06080e 0%, #0a0d16 100%);
 }
 
 code, pre, .font-mono {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 }
 
-/* Custom sleek scrollbars */
+/* ─── Floating Bento Grid Shell ──────────────────── */
+.cb-shell {
+  display: grid;
+  grid-template-rows: auto 1fr var(--output-height, 260px);
+  grid-template-columns: var(--palette-width, 280px) 1fr var(--properties-width, 300px);
+  grid-template-areas:
+    "topbar   topbar      topbar"
+    "palette  canvas      properties"
+    "palette  output      properties";
+  height: 100vh;
+  width: 100vw;
+  box-sizing: border-box;
+  padding: 8px;
+  gap: 8px;
+  background: transparent;
+  overflow: hidden;
+}
+
+.cb-shell--palette-closed {
+  grid-template-columns: 0px 1fr var(--properties-width, 300px);
+}
+
+.cb-shell--properties-closed {
+  grid-template-columns: var(--palette-width, 280px) 1fr 0px;
+}
+
+.cb-shell--both-closed {
+  grid-template-columns: 0px 1fr 0px;
+}
+
+.cb-shell--output-closed {
+  grid-template-rows: auto 1fr 0px;
+  grid-template-areas:
+    "topbar   topbar      topbar"
+    "palette  canvas      properties"
+    "palette  canvas      properties";
+}
+
+/* Area assignments */
+.cb-topbar     { grid-area: topbar; }
+.cb-palette    { grid-area: palette; }
+.cb-canvas     { grid-area: canvas; }
+.cb-properties { grid-area: properties; }
+.cb-output     { grid-area: output; }
+
+/* ─── Floating Glassmorphic Bento Frames ──────────── */
+.cb-bento-frame {
+  border-radius: var(--cb-radius);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  ), var(--cb-bg-surface);
+  backdrop-filter: blur(var(--cb-blur-heavy)) saturate(200%);
+  -webkit-backdrop-filter: blur(var(--cb-blur-heavy)) saturate(200%);
+  border: 1px solid var(--cb-border);
+  box-shadow: var(--cb-shadow-panel);
+  position: relative;
+  overflow: hidden;
+  transition: border-color var(--cb-transition), box-shadow var(--cb-transition);
+}
+
+.cb-bento-frame:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.glass-panel {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.015) 100%
+  ), var(--cb-bg-glass);
+  backdrop-filter: blur(var(--cb-blur)) saturate(190%);
+  -webkit-backdrop-filter: blur(var(--cb-blur)) saturate(190%);
+  border: 1px solid var(--cb-border);
+  box-shadow: var(--cb-shadow-panel);
+}
+
+.glass-panel-solid {
+  border-radius: var(--cb-radius);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  ), var(--cb-bg-surface);
+  backdrop-filter: blur(var(--cb-blur-heavy)) saturate(200%);
+  -webkit-backdrop-filter: blur(var(--cb-blur-heavy)) saturate(200%);
+  border: 1px solid var(--cb-border);
+  box-shadow: var(--cb-shadow-panel);
+  transition: border-color var(--cb-transition), box-shadow var(--cb-transition);
+}
+
+.glass-panel-solid:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Bento Sub-Cards */
+.cb-bento-card {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.01) 100%
+  ), rgba(16, 22, 38, 0.5);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--cb-radius-md);
+  box-shadow: var(--cb-shadow-card);
+  transition: all var(--cb-transition);
+}
+
+.cb-bento-card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Integrated Bento Resize Handles ────────────── */
+.cb-resize-handle {
+  position: absolute;
+  z-index: 35;
+  transition: all var(--cb-transition);
+}
+
+.cb-resize-handle--right {
+  right: -5px;
+  top: 12px;
+  bottom: 12px;
+  width: 10px;
+  cursor: col-resize;
+  border-radius: 4px;
+}
+
+.cb-resize-handle--left {
+  left: -5px;
+  top: 12px;
+  bottom: 12px;
+  width: 10px;
+  cursor: col-resize;
+  border-radius: 4px;
+}
+
+.cb-resize-handle--top {
+  top: -5px;
+  left: 16px;
+  right: 16px;
+  height: 10px;
+  cursor: row-resize;
+  border-radius: 4px;
+}
+
+.cb-resize-handle:hover,
+.cb-resize-handle:active {
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.cb-resize-handle--active {
+  background: var(--cb-cyan) !important;
+  box-shadow: 0 0 14px rgba(6, 182, 212, 0.8) !important;
+}
+
+/* ─── Sleek Scrollbars ───────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.4);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  transition: background var(--cb-transition);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.7);
+  background: rgba(255, 255, 255, 0.25);
 }
 
-/* React Flow Connection Type Feedback */
+/* ─── React Flow Overrides ───────────────────────── */
 .react-flow__handle-valid {
   border-color: #10b981 !important;
   box-shadow: 0 0 12px rgba(16, 185, 129, 0.8) !important;
@@ -52,22 +308,299 @@ code, pre, .font-mono {
   transition: all 0.15s ease-in-out;
 }
 
-/* React Flow Edge Interactions */
 .react-flow__edge-path {
-  stroke: #64748b !important;
-  stroke-width: 2.5px !important;
+  stroke: #475569 !important;
+  stroke-width: 2px !important;
   transition: stroke 0.15s ease, stroke-width 0.15s ease;
 }
 
 .react-flow__edge:hover .react-flow__edge-path {
-  stroke: #818cf8 !important;
-  stroke-width: 3.5px !important;
+  stroke: #38bdf8 !important;
+  stroke-width: 3px !important;
   cursor: pointer !important;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.6));
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
   stroke: #f43f5e !important;
-  stroke-width: 3.5px !important;
-  filter: drop-shadow(0 0 6px rgba(244, 63, 94, 0.7));
+  stroke-width: 3px !important;
+  filter: drop-shadow(0 0 8px rgba(244, 63, 94, 0.8));
+}
+
+/* React Flow canvas pane */
+.react-flow__pane {
+  background: transparent !important;
+}
+
+/* ─── Micro-animations ───────────────────────────── */
+@keyframes cb-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cb-pulse-soft {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+@keyframes cb-slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.cb-animate-in {
+  animation: cb-fade-in 0.2s ease-out;
+}
+
+.cb-slide-in {
+  animation: cb-slide-up 0.15s ease-out;
+}
+
+.cb-pulse {
+  animation: cb-pulse-soft 2s ease-in-out infinite;
+}
+
+/* ─── IDE Toolbar Styles ─────────────────────────── */
+.cb-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  height: 46px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  ), var(--cb-bg-surface);
+  backdrop-filter: blur(var(--cb-blur-heavy)) saturate(200%);
+  -webkit-backdrop-filter: blur(var(--cb-blur-heavy)) saturate(200%);
+  border: 1px solid var(--cb-border);
+  border-radius: var(--cb-radius);
+  box-shadow: var(--cb-shadow-panel);
+  z-index: 40;
+  flex-shrink: 0;
+  transition: all var(--cb-transition);
+}
+
+.cb-toolbar:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.cb-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.cb-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--cb-border);
+  margin: 0 6px;
+}
+
+.cb-toolbar-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  color: var(--cb-text-secondary);
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--cb-radius-sm);
+  cursor: pointer;
+  transition: all var(--cb-transition);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 500;
+}
+
+.cb-toolbar-btn:hover {
+  color: var(--cb-text-primary);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.cb-toolbar-btn--active {
+  color: #38bdf8 !important;
+  background: rgba(6, 182, 212, 0.12) !important;
+  border-color: rgba(6, 182, 212, 0.35) !important;
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+}
+
+.cb-toolbar-btn--primary {
+  color: #ffffff;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: all var(--cb-transition);
+}
+
+.cb-toolbar-btn--primary:hover {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transform: translateY(-0.5px);
+}
+
+.cb-toolbar-btn--primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.cb-toolbar-btn--danger {
+  color: #fecdd3;
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.25) 0%, rgba(225, 29, 72, 0.35) 100%);
+  border: 1px solid rgba(244, 63, 94, 0.45);
+  padding: 5px 12px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(244, 63, 94, 0.25);
+  transition: all var(--cb-transition);
+}
+
+.cb-toolbar-btn--danger:hover {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.4) 0%, rgba(225, 29, 72, 0.5) 100%);
+  color: #fff;
+  border-color: rgba(244, 63, 94, 0.7);
+  box-shadow: 0 4px 16px rgba(244, 63, 94, 0.4);
+  transform: translateY(-0.5px);
+}
+
+.cb-toolbar-btn--danger:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ─── Panel Section Headers ──────────────────────── */
+.cb-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--cb-border);
+}
+
+.cb-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--cb-text-secondary);
+}
+
+/* ─── Status Badges ──────────────────────────────── */
+.cb-badge {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid;
+  font-weight: 500;
+}
+
+.cb-badge--info {
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  border-color: rgba(99, 102, 241, 0.28);
+}
+
+.cb-badge--success {
+  background: rgba(16, 185, 129, 0.12);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.cb-badge--warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.cb-badge--error {
+  background: rgba(244, 63, 94, 0.12);
+  color: #fda4af;
+  border-color: rgba(244, 63, 94, 0.3);
+}
+
+/* ─── Input Fields (Frosted Glass) ────────────────── */
+.cb-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--cb-radius-sm);
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--cb-text-primary);
+  outline: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color var(--cb-transition), box-shadow var(--cb-transition), background var(--cb-transition);
+}
+
+.cb-input:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.cb-input:focus {
+  border-color: var(--cb-cyan);
+  background: rgba(12, 17, 30, 0.8);
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.25);
+}
+
+.cb-input::placeholder {
+  color: var(--cb-text-muted);
+}
+
+.cb-search-input {
+  padding-left: 36px !important;
+  padding-right: 28px !important;
+}
+
+/* ─── Range Sliders (Tactile Glass Bento) ────────── */
+input[type="range"].cb-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+  transition: all var(--cb-transition);
+}
+
+input[type="range"].cb-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #38bdf8;
+  cursor: pointer;
+  border: 2px solid #06080e;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
+  transition: transform var(--cb-transition), box-shadow var(--cb-transition);
+}
+
+/* ─── Validation Banner ──────────────────────────── */
+.cb-validation-bar {
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  border-radius: var(--cb-radius-md);
+  padding: 7px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  z-index: 35;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(244, 63, 94, 0.12);
+  backdrop-filter: blur(16px);
 }
 

@@ -1,6 +1,7 @@
 import type { ImageOutputMessage, OutputMessage } from "@codebrix/types";
 import type { RendererProps } from "../registry";
 import { useUiStore } from "../../../stores";
+import { BarChartIcon } from "../../../components/common/Icons";
 
 export default function ImageRenderer({
   messages,
@@ -51,7 +52,7 @@ export default function ImageRenderer({
             No static raster image files (.png/.svg) were generated.
           </p>
           <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-300 flex items-center gap-4 shadow-lg">
-            <span className="text-xl">📊</span>
+            <BarChartIcon size={24} className="text-indigo-400" />
             <div className="text-left">
               <p className="text-xs font-semibold text-slate-200">
                 Interactive Plot Available

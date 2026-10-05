@@ -1,7 +1,15 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useExecutionStore, useUiStore, type OutputTab } from "../../stores";
 import { outputRendererRegistry } from "./registry";
 import "./renderers"; // Ensure standard renderers are registered
+import {
+  MaximizeIcon,
+  MinimizeIcon,
+  CloseIcon,
+  CheckCircleIcon,
+  AlertCircleIcon,
+  TerminalIcon,
+} from "../../components/common/Icons";
 
 interface TabConfig {
   id: OutputTab;
@@ -33,51 +41,6 @@ export default function OutputPanel() {
 
   const [isMaximized, setIsMaximized] = useState(false);
   const [previousHeight, setPreviousHeight] = useState(panelHeight);
-  const [isDragging, setIsDragging] = useState(false);
-
-  const dragStartY = useRef(0);
-  const dragStartHeight = useRef(panelHeight);
-
-  // Resize handler on mousedown
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      setIsDragging(true);
-      dragStartY.current = e.clientY;
-      dragStartHeight.current = panelHeight;
-      document.body.style.cursor = "row-resize";
-      document.body.style.userSelect = "none";
-    },
-    [panelHeight]
-  );
-
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const deltaY = dragStartY.current - e.clientY;
-      const nextHeight = Math.max(
-        150,
-        Math.min(window.innerHeight - 100, dragStartHeight.current + deltaY)
-      );
-      setPanelHeight(nextHeight);
-      if (isMaximized) setIsMaximized(false);
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDragging, isMaximized, setPanelHeight]);
 
   const toggleMaximize = useCallback(() => {
     if (isMaximized) {
@@ -90,40 +53,7 @@ export default function OutputPanel() {
     }
   }, [isMaximized, panelHeight, previousHeight, setPanelHeight]);
 
-  if (!isOutputOpen) {
-    return (
-      <aside
-        aria-label="Output Notebook"
-        className="h-8 bg-slate-900 border-t border-slate-800 px-4 flex items-center justify-between shrink-0 select-none"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-mono text-slate-400">Output Notebook</span>
-          {runState === "running" && (
-            <span className="flex items-center gap-1.5 text-xs text-amber-400 font-mono animate-pulse">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              Running...
-            </span>
-          )}
-          {result && (
-            <span
-              className={`text-xs font-mono ${
-                result.status === "success" ? "text-emerald-400" : "text-rose-400"
-              }`}
-            >
-              [{result.status === "success" ? "✓" : "✗"} {result.status}]
-            </span>
-          )}
-        </div>
-        <button
-          onClick={toggleOutput}
-          className="text-xs text-indigo-400 hover:text-indigo-300 font-mono flex items-center gap-1 cursor-pointer"
-        >
-          <span>▲</span>
-          <span>Expand Output</span>
-        </button>
-      </aside>
-    );
-  }
+  if (!isOutputOpen) return null;
 
   const liveOutputs = outputs.length > 0 ? outputs : result?.outputs || [];
 
@@ -176,25 +106,19 @@ export default function OutputPanel() {
   return (
     <footer
       aria-label="Output Notebook"
-      style={{ height: `${panelHeight}px` }}
-      className={`bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex flex-col shrink-0 overflow-hidden relative select-none transition-height ${
-        isDragging ? "transition-none" : "duration-75"
-      }`}
+      className="w-full h-full flex flex-col overflow-hidden select-none"
     >
-      {/* Interactive Top Resize Handle */}
-      <div
-        onMouseDown={handleMouseDown}
-        onDoubleClick={toggleMaximize}
-        className="h-2 w-full bg-slate-900/80 hover:bg-indigo-500/60 active:bg-indigo-400 cursor-row-resize transition-colors flex items-center justify-center group select-none shrink-0 border-t border-slate-700/60"
-        title="Drag up/down to resize output panel. Double-click to maximize."
-      >
-        <div className="w-14 h-1 bg-slate-600 group-hover:bg-indigo-200 group-active:bg-white rounded-full transition-colors" />
-      </div>
-
       {/* Header Bar */}
-      <div className="h-9 px-4 bg-slate-950/70 border-b border-slate-800/80 flex items-center justify-between shrink-0">
+      <div className="h-9 px-3 bg-white/[0.02] border-b border-white/10 flex items-center justify-between shrink-0">
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 pr-2.5 border-r border-white/10 text-slate-400">
+            <TerminalIcon size={12} className="text-cyan-400" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-200">
+              Terminal
+            </span>
+          </div>
+
           {TABS.map((tab) => {
             const count = getTabCount(tab);
             const isActive = normalizedActiveTab === tab.id;
@@ -203,23 +127,23 @@ export default function OutputPanel() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 text-xs rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                   isActive
-                    ? "bg-slate-900 text-indigo-300 border-t-2 border-indigo-400 font-semibold shadow-inner"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                    ? "bg-white/[0.12] text-white font-semibold border border-white/20 shadow-[0_0_10px_rgba(255,255,255,0.1)]"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.06]"
                 }`}
               >
                 <span>{tab.label}</span>
                 {tab.id === "console" && errorCount > 0 ? (
-                  <span className="px-1.5 py-0.2 bg-rose-500/20 text-rose-300 text-[10px] rounded-full border border-rose-500/40 font-mono">
-                    {errorCount} err
+                  <span className="px-1.5 py-0.2 bg-rose-500/25 text-rose-300 text-[9px] rounded-full border border-rose-500/40 font-mono font-bold shadow-[0_0_6px_rgba(244,63,94,0.3)]">
+                    {errorCount}
                   </span>
                 ) : count > 0 ? (
                   <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono ${
                       isActive
-                        ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                        : "bg-slate-800 text-slate-400"
+                        ? "bg-cyan-500/25 text-cyan-200 border border-cyan-400/40 font-bold"
+                        : "bg-white/[0.06] text-slate-400 border border-white/5"
                     }`}
                   >
                     {count}
@@ -231,39 +155,46 @@ export default function OutputPanel() {
         </div>
 
         {/* Status, Duration, Exit Code & Actions */}
-        <div className="flex items-center gap-3 text-xs font-mono">
+        <div className="flex items-center gap-2.5 text-xs font-mono">
           {runState === "running" ? (
-            <span className="text-amber-400 flex items-center gap-1.5 animate-pulse truncate max-w-md font-medium">
-              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-              {statusMessage || "Executing Python subprocess..."}
+            <span className="text-cyan-400 flex items-center gap-1.5 animate-pulse truncate max-w-xs font-medium">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.9)] shrink-0" />
+              {statusMessage || "Running Python execution..."}
             </span>
           ) : result ? (
-            <div className="flex items-center gap-3 text-slate-400">
+            <div className="flex items-center gap-2 text-slate-400 text-[11px]">
               <span
-                className={`font-semibold flex items-center gap-1 ${
-                  result.status === "success" ? "text-emerald-400" : "text-rose-400"
+                className={`font-semibold flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${
+                  result.status === "success"
+                    ? "bg-emerald-950/60 text-emerald-300 border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.2)]"
+                    : "bg-rose-950/60 text-rose-300 border-rose-500/40 shadow-[0_0_8px_rgba(244,63,94,0.2)]"
                 }`}
               >
-                {result.status === "success" ? "✓" : "✗"} {result.status}
+                {result.status === "success" ? (
+                  <CheckCircleIcon size={12} className="text-emerald-400" />
+                ) : (
+                  <AlertCircleIcon size={12} className="text-rose-400" />
+                )}
+                <span className="capitalize">{result.status}</span>
               </span>
               {typeof result.durationMs === "number" && (
-                <span>{result.durationMs}ms</span>
+                <span className="text-slate-500">{result.durationMs}ms</span>
               )}
               {typeof result.exitCode === "number" && (
-                <span className="text-slate-500">exit: {result.exitCode}</span>
+                <span className="text-slate-500">exit:{result.exitCode}</span>
               )}
             </div>
           ) : (
-            <span className="text-slate-500 italic">No runs executed yet</span>
+            <span className="text-slate-500 text-[11px] italic">Ready</span>
           )}
 
-          <div className="w-px h-3.5 bg-slate-800 mx-0.5" />
+          <div className="w-px h-3 bg-white/10 mx-0.5" />
 
           {liveOutputs.length > 0 && (
             <button
               onClick={clearOutputs}
-              className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-              title="Clear all outputs"
+              className="text-[10px] text-slate-400 hover:text-rose-300 transition-colors px-2 py-0.5 rounded-lg hover:bg-white/10 cursor-pointer"
+              title="Clear outputs"
             >
               Clear
             </button>
@@ -272,25 +203,25 @@ export default function OutputPanel() {
           {/* Maximize / Restore Button */}
           <button
             onClick={toggleMaximize}
-            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors text-xs cursor-pointer"
-            title={isMaximized ? "Restore size" : "Maximize output panel"}
+            className="p-1 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+            title={isMaximized ? "Restore" : "Maximize"}
           >
-            {isMaximized ? "❐" : "🗖"}
+            {isMaximized ? <MinimizeIcon size={12} /> : <MaximizeIcon size={12} />}
           </button>
 
           {/* Collapse Button */}
           <button
             onClick={toggleOutput}
-            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors text-xs cursor-pointer"
-            title="Collapse output panel"
+            className="p-1 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+            title="Close Terminal"
           >
-            ▼
+            <CloseIcon size={12} />
           </button>
         </div>
       </div>
 
       {/* Content Area Host */}
-      <div className="flex-1 p-4 overflow-auto font-mono text-xs select-text">
+      <div className="flex-1 p-3 overflow-auto font-mono text-xs select-text bg-transparent">
         {RendererComponent ? (
           <RendererComponent
             messages={liveOutputs}
@@ -301,7 +232,7 @@ export default function OutputPanel() {
             onClear={clearOutputs}
           />
         ) : (
-          <div className="text-slate-500 text-center py-8 font-mono text-xs">
+          <div className="text-slate-500 text-center py-6 font-mono text-xs">
             No renderer registered for channel "{currentTabConfig.rendererType}".
           </div>
         )}
