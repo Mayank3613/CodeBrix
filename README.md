@@ -169,7 +169,7 @@ Based on the **CodeBrix Phase-wise Workflow & Working Plan**:
 | **Phase 3** | **Libraries & Python Runtime** | • Dynamic block discovery, project autosave & crash recovery.<br>• Cross-platform Python discovery (`venv`, `py`, `python`, `python3`).<br>• Process manager with streaming stdout/stderr protocol & structured errors. | ✅ Complete |
 | **Phase 4** | **Workflow UX & Output Engine** | • Run/Stop toolbar, per-block execution status glow.<br>• Draggable vertical top resize handle with maximize/restore toggle.<br>• Modular output renderers: Console with tracebacks, Tables, Metrics, Plots.<br>• **Gate:** Canonical Iris classification renders all live outputs in real time. | ✅ Complete |
 | **Phase 5** | **Full Integration** | • Combined `data-workflow` & `ml-execution` branches into `main`.<br>• Robustness on arbitrary datasets (quote stripping, text auto-encoding, regression fallback).<br>• **Gate 4:** Full 8-block merged pipeline passes all unit and integration tests. | ✅ Complete |
-| **Phase 6** | **Cross-Platform Validation** | • Windows, macOS, and Linux multi-OS validation.<br>• Path separator normalization, line-ending hygiene, native packaging. | 🔄 Next |
+| **Phase 6** | **Cross-Platform Validation** | • Windows, macOS, and Linux multi-OS validation.<br>• Path separator normalization, line-ending hygiene, native packaging.<br>• Cross-platform .cbx portability with spaces/non-ASCII paths.<br>• **Gate:** Multi-OS CI matrix, .cbx round-trip tests, native packaging & Python path handling. | ✅ Complete |
 | **Phase 7** | **MVP Release & Polish** | • End-to-end stress testing, user documentation polish, and `v0.1.0-mvp` release. | ⏳ Planned |
 
 ---
@@ -235,8 +235,11 @@ pnpm typecheck
 # Run linter
 pnpm lint
 
+# Run cross-platform path & .cbx portability tests (Phase 6)
+pnpm test:cross-platform
+
 # Execute complete continuous integration (CI) suite
-pnpm ci
+pnpm run ci
 ```
 
 ### Canonical Iris Acceptance Test Scripts

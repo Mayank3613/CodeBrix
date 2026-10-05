@@ -141,7 +141,8 @@ pub fn run_python_script(app: AppHandle, script: String, execution_id: String) -
 
     if let Some(ref root) = root_opt {
         cmd.current_dir(root);
-        let py_path_str = format!("{}:{}", root.display(), root.join("python").display());
+        let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
+        let py_path_str = format!("{}{}{}", root.display(), sep, root.join("python").display());
         cmd.env("PYTHONPATH", py_path_str);
     }
 

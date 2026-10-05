@@ -67,7 +67,7 @@ export class SubprocessSession {
         chunk: Buffer,
         isEnd = false
       ) => {
-        let current = (stream === "stdout" ? stdoutBuffer : stderrBuffer) + chunk.toString("utf-8");
+        const current = (stream === "stdout" ? stdoutBuffer : stderrBuffer) + chunk.toString("utf-8");
         const lines = current.split(/\r?\n/);
 
         // Keep last incomplete segment in buffer unless ending

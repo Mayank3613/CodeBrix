@@ -16,7 +16,8 @@
     "validate:iris": "tsx scripts/validate-iris.ts",
     "generate:iris": "tsx scripts/generate-iris.ts",
     "run:iris": "tsx scripts/run-iris.ts",
-    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm --filter codebrix-appsdesktop test && pnpm --filter @codebrix/library-core test && pnpm --filter @codebrix/library-data test"
+    "test:cross-platform": "vitest run --reporter verbose tests/integration/phase-6-cross-platform.test.ts apps/desktop/src/project/crossPlatformPaths.test.ts",
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm --filter codebrix-appsdesktop test && pnpm --filter @codebrix/library-core test && pnpm --filter @codebrix/library-data test && pnpm run test:cross-platform"
   },
   "keywords": [],
   "author": "",

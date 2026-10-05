@@ -1,0 +1,194 @@
+name: "Phase 6: Cross-Platform Build & Validate"
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+      - 'phase-6/**'
+  pull_request:
+    branches:
+      - main
+
+# Prevent duplicate runs on the same PR
+concurrency:
+  group: cross-platform-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ─── D1-6.1: Tauri Packaging on Windows & macOS ────────────────────────
+  tauri-build:
+    name: "Tauri Build (${{ matrix.target.name }})"
+    runs-on: ${{ matrix.target.runner }}
+    strategy:
+      fail-fast: true # A failure on any platform blocks the merge
+      matrix:
+        target:
+          - name: macOS
+            runner: macos-latest
+            bundle-ext: dmg
+            artifact-glob: "apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg"
+          - name: Windows
+            runner: windows-latest
+            bundle-ext: msi
+            artifact-glob: "apps/desktop/src-tauri/target/release/bundle/msi/*.msi"
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 11
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/desktop/src-tauri/target
+          key: cargo-${{ matrix.target.name }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ matrix.target.name }}-
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f python/requirements.txt ]; then pip install -r python/requirements.txt; fi
+
+      - name: Install Node dependencies
+        run: pnpm install
+
+      - name: Run cross-platform path validation tests
+        run: pnpm run test:cross-platform
+
+      - name: Build Tauri application
+        run: pnpm run build:tauri
+        env:
+          # Suppress Tauri updater configuration requirement for CI builds
+          TAURI_SIGNING_PRIVATE_KEY: ""
+
+      - name: Verify installer artifact exists
+        run: |
+          echo "Looking for ${{ matrix.target.bundle-ext }} installer..."
+          if compgen -G "${{ matrix.target.artifact-glob }}" > /dev/null 2>&1; then
+            echo "✅ Installer found:"
+            ls -la ${{ matrix.target.artifact-glob }}
+          else
+            echo "❌ ERROR: No ${{ matrix.target.bundle-ext }} installer was produced!"
+            echo "Build artifacts in target/release/bundle:"
+            find apps/desktop/src-tauri/target/release/bundle -type f 2>/dev/null || echo "  (none found)"
+            exit 1
+          fi
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codebrix-${{ matrix.target.name }}-installer
+          path: ${{ matrix.target.artifact-glob }}
+          if-no-files-found: error
+          retention-days: 14
+
+  # ─── D1-6.2: Cross-platform filesystem & .cbx path tests ──────────────
+  path-validation:
+    name: "Path Validation (${{ matrix.os }})"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 11
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f python/requirements.txt ]; then pip install -r python/requirements.txt; fi
+
+      - name: Install Node dependencies
+        run: pnpm install
+
+      - name: Run full unit test suite
+        run: |
+          pnpm run test
+          pnpm --filter codebrix-appsdesktop test
+          pnpm --filter @codebrix/library-core test
+          pnpm --filter @codebrix/library-data test
+
+      - name: Run cross-platform path & .cbx validation
+        run: pnpm run test:cross-platform
+
+      - name: Run Iris acceptance pipeline (validate + generate)
+        run: |
+          pnpm run validate:iris
+          pnpm run generate:iris
+
+      - name: Build frontend (pre-Tauri)
+        run: pnpm run build
+
+  # ─── Gate: All platforms pass ──────────────────────────────────────────
+  phase6-gate:
+    name: "Phase 6 Gate — All Platforms Pass"
+    needs: [tauri-build, path-validation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All cross-platform checks passed
+        run: |
+          echo "═══════════════════════════════════════════════════════════"
+          echo "  ✅ Phase 6: Cross-Platform Validation — ALL GATES PASS"
+          echo "═══════════════════════════════════════════════════════════"
+          echo ""
+          echo "  • Tauri packaging: macOS ✅  Windows ✅"
+          echo "  • Path validation:  Linux ✅  macOS ✅  Windows ✅"
+          echo "  • .cbx portability: Verified across all three OSes"
+          echo ""
+          echo "  Ready to hand off to release process."
+          echo "═══════════════════════════════════════════════════════════"

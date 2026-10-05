@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "codebrix-appsdesktop",
+  "productName": "CodeBrix",
   "version": "0.1.0",
   "identifier": "com.codebrix.app",
   "build": {
@@ -12,9 +12,14 @@
   "app": {
     "windows": [
       {
-        "title": "codebrix-appsdesktop",
-        "width": 800,
-        "height": 600
+        "title": "CodeBrix — Visual ML Pipeline Builder",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 600,
+        "center": true,
+        "decorations": true,
+        "resizable": true
       }
     ],
     "security": {
@@ -30,6 +35,23 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": [
+      "../../../python/**/*",
+      "../../../tests/fixtures/**/*",
+      "../../../libraries/*/library.json"
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "Visual ML Pipeline Builder",
+    "longDescription": "CodeBrix is an open-source, extensible visual programming platform for Machine Learning. Build ML pipelines with drag-and-drop ease, inspect real-time notebook outputs, and generate clean, standalone, zero-lock-in Python scripts.",
+    "copyright": "Copyright © 2026 CodeBrix Contributors",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "wix": {
+        "language": "en-US"
+      }
+    }
   }
 }

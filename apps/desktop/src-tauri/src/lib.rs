@@ -12,10 +12,13 @@ pub fn run() {
     
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             commands::fs::read_file,
             commands::fs::write_file,
+            commands::fs::list_cbx_files,
+            commands::fs::resolve_workspace_path,
             commands::libraries::list_libraries,
             commands::libraries::read_library_manifest,
             commands::python::run_python_script,

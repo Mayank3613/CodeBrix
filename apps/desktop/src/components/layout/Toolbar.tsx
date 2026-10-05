@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { workflowService } from "../../services";
-import { runPythonExecution, stopPythonExecution } from "../../services/tauriPythonRuntime";
+import { stopPythonExecution } from "../../services/tauriPythonRuntime";
 import {
   useWorkflowStore,
   useValidationStore,
@@ -20,7 +20,6 @@ import {
   restoreFromRecoverySnapshot,
 } from "../../project/autosave";
 import { readProjectFile } from "../../project/fileIo";
-import { PythonCodeGenerator } from "@codebrix/codegen";
 
 export default function Toolbar() {
   const [isValidating, setIsValidating] = useState(false);

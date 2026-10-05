@@ -8,6 +8,7 @@ import {
   clearRecoverySnapshot,
   type AutosaveSnapshot,
 } from "../project/autosave";
+import { normalizePath } from "../project/crossPlatformPaths";
 
 export interface ProjectState {
   currentFilePath: string | null;
@@ -47,13 +48,15 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
   setCurrentFilePath: (path: string | null) =>
     set((state) => {
+      // Phase 6 (D1-6.2): Normalize path for cross-platform portability
+      const normalizedPath = path ? normalizePath(path) : null;
       let nextRecent = state.recentProjects;
-      if (path) {
-        nextRecent = [path, ...state.recentProjects.filter((p) => p !== path)].slice(0, 10);
+      if (normalizedPath) {
+        nextRecent = [normalizedPath, ...state.recentProjects.filter((p) => p !== normalizedPath)].slice(0, 10);
         persistRecentProjects(nextRecent);
       }
       return {
-        currentFilePath: path,
+        currentFilePath: normalizedPath,
         isDirty: false,
         recentProjects: nextRecent,
       };
@@ -63,14 +66,17 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
   addRecentProject: (path: string) =>
     set((state) => {
-      const nextRecent = [path, ...state.recentProjects.filter((p) => p !== path)].slice(0, 10);
+      // Phase 6 (D1-6.2): Normalize for cross-platform recent-project entries
+      const normalizedPath = normalizePath(path);
+      const nextRecent = [normalizedPath, ...state.recentProjects.filter((p) => p !== normalizedPath)].slice(0, 10);
       persistRecentProjects(nextRecent);
       return { recentProjects: nextRecent };
     }),
 
   removeRecentProject: (path: string) =>
     set((state) => {
-      const nextRecent = state.recentProjects.filter((p) => p !== path);
+      const normalizedPath = normalizePath(path);
+      const nextRecent = state.recentProjects.filter((p) => p !== normalizedPath);
       persistRecentProjects(nextRecent);
       return { recentProjects: nextRecent };
     }),

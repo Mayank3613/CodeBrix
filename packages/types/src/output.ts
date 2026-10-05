@@ -41,7 +41,7 @@ export interface MetricsOutputMessage {
   type: "metrics";
   title?: string;
   blockId?: string;
-  metrics: Record<string, number | string | boolean>;
+  metrics: Record<string, number | string | boolean | unknown[]>;
   timestamp: string;
 }
 

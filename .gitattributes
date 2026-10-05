@@ -1,6 +1,38 @@
+# Phase 6: Enforce consistent line endings across all platforms
 * text=auto eol=lf
+
+# Source files
 *.cbx text eol=lf
 *.json text eol=lf
 *.ts text eol=lf
 *.tsx text eol=lf
 *.md text eol=lf
+*.rs text eol=lf
+*.py text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+
+# Config files
+*.editorconfig text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+*.npmrc text eol=lf
+*.nvmrc text eol=lf
+*.prettierrc text eol=lf
+
+# Binary files — do not touch line endings
+*.png binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# Lock files — keep as-is to avoid merge churn
+pnpm-lock.yaml -diff
+Cargo.lock -diff
