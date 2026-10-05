@@ -33,12 +33,13 @@ import {
   SlidersIcon,
   LayersIcon,
   TerminalIcon,
+  LayoutTemplateIcon,
 } from "../common/Icons";
 
 export default function Toolbar() {
   const [isValidating, setIsValidating] = useState(false);
-  const [isRecentOpen, setIsRecentOpen] = useState(false);
-  const recentMenuRef = useRef<HTMLDivElement>(null);
+  const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+  const fileMenuRef = useRef<HTMLDivElement>(null);
 
   const graph = useWorkflowStore((s) => s.graph);
   const setGraph = useWorkflowStore((s) => s.setGraph);
@@ -85,11 +86,11 @@ export default function Toolbar() {
     return () => clearInterval(timer);
   }, [checkRecovery]);
 
-  // Click outside to close recent menu
+  // Click outside to close file menu
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (recentMenuRef.current && !recentMenuRef.current.contains(event.target as Node)) {
-        setIsRecentOpen(false);
+      if (fileMenuRef.current && !fileMenuRef.current.contains(event.target as Node)) {
+        setIsFileMenuOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -258,17 +259,20 @@ export default function Toolbar() {
     await saveProjectFileDialog(json, filename);
   };
 
-  const handleStop = async () => {
-    await stopPythonExecution();
+  const handleFormat = () => {
+    useWorkflowStore.getState().autoLayout();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("codebrix:fit-view"));
+    }
   };
 
   const handleReset = () => {
-    const mock = createIrisWorkflowMock();
-    setGraph(mock);
-    setValidationResult(null);
-    setRunState("idle");
-    setProjectName("Iris Classification Acceptance Pipeline");
-    markDirty(false);
+    // Reset all palette and panel dimensions and open states to defaults
+    useUiStore.getState().resetUi();
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("codebrix:fit-view"));
+    }
   };
 
   const handleRestoreRecovery = () => {
@@ -348,116 +352,130 @@ export default function Toolbar() {
 
           <div className="cb-toolbar-divider" />
 
-          {/* File Operations */}
-          <div className="flex items-center gap-0.5 bg-white/[0.03] p-0.5 rounded-lg border border-white/10" ref={recentMenuRef}>
-            <button
-              onClick={handleNewProject}
-              className="cb-toolbar-btn text-[11px]"
-              title="Create a new blank project"
-            >
-              New
-            </button>
-
-            <button
-              onClick={handleOpenProject}
-              className="cb-toolbar-btn text-[11px]"
-              title="Open a .cbx project file"
-            >
-              <FolderIcon size={12} />
-              <span>Open</span>
-            </button>
-
-            {/* Recent projects dropdown */}
+          {/* Streamlined File Operations Menu */}
+          <div className="flex items-center gap-1 bg-white/[0.03] p-0.5 rounded-lg border border-white/10 shrink-0" ref={fileMenuRef}>
+            {/* File Menu Dropdown Trigger */}
             <div className="relative">
               <button
-                onClick={() => setIsRecentOpen(!isRecentOpen)}
-                className="cb-toolbar-btn px-1 text-[11px]"
-                title="Recent projects"
+                onClick={() => setIsFileMenuOpen(!isFileMenuOpen)}
+                className={`cb-toolbar-btn text-[11px] px-2.5 py-1 rounded-md transition-all ${
+                  isFileMenuOpen ? "bg-white/15 text-white" : "text-slate-300 hover:text-white"
+                }`}
+                title="File & Project Menu"
               >
-                <ChevronDownIcon size={10} />
+                <FolderIcon size={12} className="text-cyan-400" />
+                <span>File</span>
+                <ChevronDownIcon size={10} className="text-slate-400" />
               </button>
 
-              {isRecentOpen && (
-                <div className="absolute left-0 top-full mt-2 w-64 bg-slate-900/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl py-1 z-50">
-                  <div className="px-3 py-1.5 text-[10px] font-semibold text-cyan-400 uppercase tracking-wider border-b border-white/10 flex items-center justify-between">
-                    <span>Recent Projects</span>
-                    <span className="text-[9px] font-mono text-slate-500">{recentProjects.length}</span>
+              {isFileMenuOpen && (
+                <div className="absolute left-0 top-full mt-2 w-64 bg-[#0d1322]/98 backdrop-blur-2xl border border-white/15 rounded-xl shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-3 py-1 text-[9.5px] font-mono font-bold text-slate-400 uppercase tracking-wider border-b border-white/10">
+                    Project Actions
                   </div>
-                  {recentProjects.length > 0 ? (
+
+                  <button
+                    onClick={() => { setIsFileMenuOpen(false); handleNewProject(); }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:text-white hover:bg-cyan-500/15 flex items-center justify-between transition-colors"
+                  >
+                    <span>New Project</span>
+                    <span className="text-[10px] font-mono text-slate-500">Ctrl+N</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setIsFileMenuOpen(false); handleOpenProject(); }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:text-white hover:bg-cyan-500/15 flex items-center justify-between transition-colors"
+                  >
+                    <span>Open Project...</span>
+                    <span className="text-[10px] font-mono text-slate-500">Ctrl+O</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setIsFileMenuOpen(false); handleSaveProject(); }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:text-white hover:bg-cyan-500/15 flex items-center justify-between transition-colors"
+                  >
+                    <span>Save Project</span>
+                    <span className="text-[10px] font-mono text-slate-500">Ctrl+S</span>
+                  </button>
+
+                  <button
+                    onClick={() => { setIsFileMenuOpen(false); handleSaveAsProject(); }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:text-white hover:bg-cyan-500/15 transition-colors"
+                  >
+                    Save As...
+                  </button>
+
+                  <div className="my-1 border-t border-white/10" />
+
+                  <div className="px-3 py-1 text-[9.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                    Import & Export
+                  </div>
+
+                  <button
+                    onClick={() => { setIsFileMenuOpen(false); handleImportProject(); }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:text-white hover:bg-cyan-500/15 transition-colors"
+                  >
+                    Import .cbx Project...
+                  </button>
+
+                  <button
+                    onClick={() => { setIsFileMenuOpen(false); handleExportProject(); }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:text-white hover:bg-cyan-500/15 transition-colors"
+                  >
+                    Export .cbx Project...
+                  </button>
+
+                  <button
+                    onClick={() => { setIsFileMenuOpen(false); handleExportPython(); }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-cyan-300 hover:text-cyan-100 hover:bg-cyan-950/40 flex items-center gap-1.5 font-mono transition-colors"
+                  >
+                    <CodeIcon size={12} />
+                    <span>Export Python Script (.py)</span>
+                  </button>
+
+                  {recentProjects.length > 0 && (
                     <>
-                      {recentProjects.map((p, i) => (
+                      <div className="my-1 border-t border-white/10" />
+                      <div className="px-3 py-1 text-[9.5px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                        <span>Recent</span>
+                        <span className="text-[9px] text-slate-500">{recentProjects.length}</span>
+                      </div>
+                      {recentProjects.slice(0, 4).map((p, i) => (
                         <button
                           key={i}
-                          onClick={() => handleOpenRecent(p)}
-                          className="w-full text-left px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-cyan-500/15 font-mono truncate block transition-colors"
+                          onClick={() => { setIsFileMenuOpen(false); handleOpenRecent(p); }}
+                          className="w-full text-left px-3 py-1 text-[11px] text-slate-400 hover:text-white hover:bg-white/[0.06] font-mono truncate block transition-colors"
                           title={p}
                         >
-                          {p.split("/").pop() || p}
+                          {p.split(/[/\\]/).pop() || p}
                         </button>
                       ))}
-                      <div className="border-t border-white/10 mt-1 pt-1 px-3 py-1">
-                        <button
-                          onClick={clearRecentProjects}
-                          className="text-[10px] text-slate-500 hover:text-rose-400 transition-colors"
-                        >
-                          Clear History
-                        </button>
-                      </div>
                     </>
-                  ) : (
-                    <div className="px-3 py-2 text-xs text-slate-500 italic">No recent projects</div>
                   )}
                 </div>
               )}
             </div>
 
+            {/* Quick 1-Click Save Action */}
             <button
               onClick={handleSaveProject}
-              className="cb-toolbar-btn text-[11px]"
-              title="Save project file (.cbx)"
+              className={`cb-toolbar-btn text-[11px] px-2.5 py-1 rounded-md transition-colors ${
+                isDirty
+                  ? "bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 border border-amber-500/30"
+                  : "text-slate-300 hover:text-white"
+              }`}
+              title={isDirty ? "Unsaved changes! Click to save" : "Project saved"}
             >
-              <SaveIcon size={12} />
+              <SaveIcon size={12} className={isDirty ? "text-amber-400" : "text-slate-400"} />
               <span>Save</span>
-            </button>
-
-            <button
-              onClick={handleSaveAsProject}
-              className="cb-toolbar-btn text-[11px]"
-              title="Save as a new file"
-            >
-              Save As
-            </button>
-
-            <button
-              onClick={handleImportProject}
-              className="cb-toolbar-btn text-[11px]"
-              title="Import .cbx project"
-            >
-              Import
-            </button>
-
-            <button
-              onClick={handleExportProject}
-              className="cb-toolbar-btn text-[11px]"
-              title="Export project as .cbx"
-            >
-              Export
-            </button>
-
-            <button
-              onClick={handleExportPython}
-              className="cb-toolbar-btn text-[11px] text-cyan-300 hover:text-cyan-200 hover:bg-cyan-950/40"
-              title="Export standalone Python script (.py)"
-            >
-              <CodeIcon size={12} />
-              <span>Export .py</span>
+              {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
             </button>
           </div>
 
-          <div className="cb-toolbar-divider" />
+          <div className="cb-toolbar-divider shrink-0" />
 
           {/* Panel View Toggles (Tactile Bento Style) */}
-          <div className="flex items-center gap-1 bg-white/[0.03] p-0.5 rounded-lg border border-white/10">
+          <div className="flex items-center gap-1 bg-white/[0.03] p-0.5 rounded-lg border border-white/10 shrink-0">
             <button
               onClick={togglePalette}
               className={`cb-toolbar-btn px-2.5 py-1 rounded-md text-[11px] ${
@@ -500,7 +518,7 @@ export default function Toolbar() {
         </div>
 
         {/* Center: Graph Stats */}
-        <div className="hidden lg:flex items-center gap-2 text-[11px] font-mono text-slate-400 bg-white/[0.03] px-2.5 py-1 rounded-lg border border-white/5">
+        <div className="hidden xl:flex items-center gap-2 text-[11px] font-mono text-slate-400 bg-white/[0.03] px-2.5 py-1 rounded-lg border border-white/5 shrink truncate max-w-sm">
           <span className="text-cyan-400 font-semibold">{Object.keys(graph.blocks).length}</span>
           <span>nodes</span>
           <span className="text-slate-600">•</span>
@@ -509,78 +527,89 @@ export default function Toolbar() {
           {statusMessage && (
             <>
               <span className="text-slate-600">•</span>
-              <span className="text-slate-300 truncate max-w-xs">{statusMessage}</span>
+              <span className="text-slate-300 truncate">{statusMessage}</span>
             </>
           )}
         </div>
 
-        {/* Right: Validation & Execution Controls */}
-        <div className="flex items-center gap-2">
-          {/* Validation Status Badge */}
-          {validationResult && (
-            <div
-              className={`flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-1 rounded-lg border ${
-                validationResult.valid
-                  ? "bg-emerald-950/50 text-emerald-300 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
-                  : "bg-rose-950/50 text-rose-300 border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.2)]"
-              }`}
-            >
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  validationResult.valid
-                    ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]"
-                    : "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]"
-                }`}
-              />
-              <span className="font-medium">
-                {validationResult.valid
-                  ? "Pipeline Valid"
-                  : `${validationResult.errors.length} issue${validationResult.errors.length > 1 ? "s" : ""}`}
-              </span>
-            </div>
-          )}
-
-          {/* Validate Button */}
+        {/* Right: Validation & Execution Controls (Always Pinned & Shrink-Proof) */}
+        <div className="flex items-center gap-1.5 shrink-0 z-30">
+          {/* Validate Button (Turns Green if valid, Red if invalid) */}
           <button
             onClick={handleValidate}
             disabled={isValidating}
-            className="cb-toolbar-btn border border-white/10 bg-white/[0.04] hover:bg-white/10 text-[11px] px-3 py-1 rounded-lg text-slate-300 hover:text-white"
-            title="Validate graph consistency, type contracts, and required parameters"
+            className={`cb-toolbar-btn text-[11px] px-2.5 py-1 rounded-lg shrink-0 cursor-pointer flex items-center gap-1.5 transition-all ${
+              validationResult?.valid === true
+                ? "bg-emerald-600/30 text-emerald-200 border border-emerald-500/60 hover:bg-emerald-600/40 shadow-[0_0_10px_rgba(16,185,129,0.25)]"
+                : validationResult && !validationResult.valid
+                ? "bg-rose-600/30 text-rose-200 border border-rose-500/60 hover:bg-rose-600/40 shadow-[0_0_10px_rgba(244,63,94,0.25)]"
+                : "border border-white/10 bg-white/[0.04] hover:bg-white/10 text-slate-200 hover:text-white"
+            }`}
+            title={
+              validationResult?.valid === true
+                ? "Workflow graph is valid (No errors found)"
+                : validationResult && !validationResult.valid
+                ? `Validation failed (${validationResult.errors.length} error(s))`
+                : "Validate graph consistency, type contracts, and required parameters"
+            }
           >
-            <CheckIcon size={12} className="text-cyan-400" />
-            <span>{isValidating ? "Validating..." : "Validate"}</span>
+            <CheckIcon
+              size={12}
+              className={
+                validationResult?.valid === true
+                  ? "text-emerald-400"
+                  : validationResult && !validationResult.valid
+                  ? "text-rose-400"
+                  : "text-cyan-400"
+              }
+            />
+            <span>
+              {isValidating
+                ? "Validating..."
+                : validationResult?.valid === true
+                ? "Valid ✓"
+                : validationResult && !validationResult.valid
+                ? `Invalid (${validationResult.errors.length})`
+                : "Validate"}
+            </span>
+          </button>
+
+          {/* Download Python Script Button */}
+          <button
+            onClick={handleExportPython}
+            className="cb-toolbar-btn border border-sky-500/30 bg-sky-950/30 hover:bg-sky-900/40 text-sky-200 hover:text-white text-[11px] px-2.5 py-1 rounded-lg shrink-0 cursor-pointer flex items-center gap-1.5 transition-colors"
+            title="Download standalone executable Python script (.py)"
+          >
+            <CodeIcon size={12} className="text-sky-400" />
+            <span>Download .py</span>
           </button>
 
           {/* Run Pipeline Button (Emerald Glow) */}
           <button
             onClick={handleRun}
             disabled={runState === "running" || isValidating}
-            className="cb-toolbar-btn--primary text-[11px] flex items-center gap-1.5 cursor-pointer shadow-lg"
+            className="cb-toolbar-btn--primary text-[11px] px-3 py-1 flex items-center gap-1.5 cursor-pointer shadow-lg shrink-0"
             title={runState === "running" ? "Execution in progress..." : "Run Python Machine Learning Pipeline"}
           >
             <PlayIcon size={12} className="text-white" />
             <span>{isValidating ? "Validating..." : "Run Pipeline"}</span>
           </button>
 
-          {/* Stop Button (Crimson Red Glow) */}
+          {/* Format / Auto-Layout Button */}
           <button
-            onClick={handleStop}
-            disabled={runState !== "running"}
-            className={
-              runState === "running"
-                ? "cb-toolbar-btn--danger cursor-pointer animate-pulse text-[11px] flex items-center gap-1"
-                : "cb-toolbar-btn text-slate-600 border border-white/5 bg-transparent cursor-not-allowed opacity-40 text-[11px]"
-            }
-            title="Stop running Python pipeline"
+            onClick={handleFormat}
+            className="cb-toolbar-btn border border-white/10 bg-white/[0.04] hover:bg-white/10 text-slate-200 hover:text-white text-[11px] px-2 py-1 rounded-lg cursor-pointer flex items-center gap-1.5 transition-colors shrink-0"
+            title="Auto-arrange all blocks from left to right as per data flow"
           >
-            <StopIcon size={11} />
-            <span>Stop</span>
+            <LayoutTemplateIcon size={12} className="text-emerald-400" />
+            <span>Format</span>
           </button>
 
+          {/* Reset Viewport & Palettes Button */}
           <button
             onClick={handleReset}
-            className="cb-toolbar-btn text-slate-500 hover:text-cyan-300 text-[11px] px-2"
-            title="Reset to default mock pipeline"
+            className="cb-toolbar-btn text-slate-400 hover:text-white text-[11px] px-2 py-1 rounded-lg border border-white/5 hover:border-white/10 bg-white/[0.02] hover:bg-white/[0.06] transition-colors shrink-0 cursor-pointer"
+            title="Reset size and open state of all palettes and panels to default"
           >
             Reset
           </button>

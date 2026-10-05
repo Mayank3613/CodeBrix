@@ -33,7 +33,7 @@ function isInputElement(el: Element | null): boolean {
 }
 
 function CanvasContent() {
-  const { screenToFlowPosition, setCenter } = useReactFlow();
+  const { screenToFlowPosition, setCenter, fitView } = useReactFlow();
   const graph = useWorkflowStore((s) => s.graph);
   const updateBlockPosition = useWorkflowStore((s) => s.updateBlockPosition);
   const recordHistory = useWorkflowStore((s) => s.recordHistory);
@@ -50,6 +50,17 @@ function CanvasContent() {
 
   // Dedicated selection state for connections (edges)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
+  // Listen to codebrix:fit-view event (e.g. after Format or Reset)
+  useEffect(() => {
+    const handleFitView = () => {
+      setTimeout(() => {
+        fitView({ duration: 600, padding: 0.2 });
+      }, 60);
+    };
+    window.addEventListener("codebrix:fit-view", handleFitView);
+    return () => window.removeEventListener("codebrix:fit-view", handleFitView);
+  }, [fitView]);
 
   // Smoothly center the canvas on a focused block (e.g. from validation error click)
   useEffect(() => {
@@ -355,9 +366,18 @@ function CanvasContent() {
     [screenToFlowPosition, addBlock]
   );
 
+  // Edge hover info state for canvas connection inspection
+  const [hoveredEdgeInfo, setHoveredEdgeInfo] = useState<{
+    sourceLabel: string;
+    targetLabel: string;
+    sourceType: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
   return (
     <div
-      className="flex-1 h-full bg-slate-950 relative overflow-hidden select-none"
+      className="flex-1 h-full bg-transparent relative overflow-hidden select-none"
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
@@ -367,7 +387,7 @@ function CanvasContent() {
           className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 px-3.5 py-1.5 rounded-full border shadow-2xl flex items-center gap-2 text-xs font-mono backdrop-blur-md transition-all animate-in fade-in zoom-in-95 duration-150 ${
             connectionFeedback.type === "error"
               ? "bg-rose-950/95 border-rose-500/80 text-rose-200 shadow-rose-950/50"
-              : "bg-slate-900/95 border-indigo-500/80 text-indigo-200 shadow-slate-950/50"
+              : "bg-slate-900/95 border-cyan-500/80 text-cyan-200 shadow-slate-950/50"
           }`}
         >
           <span>
@@ -381,6 +401,21 @@ function CanvasContent() {
         </div>
       )}
 
+      {/* Floating edge connection hover inspector */}
+      {hoveredEdgeInfo && (
+        <div
+          style={{ top: hoveredEdgeInfo.y - 42, left: hoveredEdgeInfo.x - 90 }}
+          className="fixed z-50 pointer-events-none px-3 py-1.5 rounded-xl bg-[#090d18]/95 backdrop-blur-2xl border border-white/20 text-[10.5px] font-mono shadow-[0_12px_32px_rgba(0,0,0,0.8)] text-slate-200 flex items-center gap-2 animate-in fade-in duration-100"
+        >
+          <span className="text-white font-semibold">{hoveredEdgeInfo.sourceLabel}</span>
+          <span className="text-cyan-400 font-bold px-1.5 py-0.2 rounded bg-cyan-500/10 border border-cyan-500/25 text-[9px]">
+            {hoveredEdgeInfo.sourceType}
+          </span>
+          <span className="text-slate-500">→</span>
+          <span className="text-white font-semibold">{hoveredEdgeInfo.targetLabel}</span>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges as unknown as import("@xyflow/react").Edge[]}
@@ -391,6 +426,21 @@ function CanvasContent() {
         onEdgeClick={onEdgeClick}
         onEdgeDoubleClick={onEdgeDoubleClick}
         onEdgeContextMenu={onEdgeContextMenu}
+        onEdgeMouseEnter={(e, edge) => {
+          const source = graph.blocks[edge.source];
+          const target = graph.blocks[edge.target];
+          const sourceDef = source ? blockRegistry.get(source.definitionId) : null;
+          const targetDef = target ? blockRegistry.get(target.definitionId) : null;
+          const sourcePort = sourceDef?.outputs.find((p) => p.id === edge.sourceHandle);
+          setHoveredEdgeInfo({
+            sourceLabel: source?.label || sourceDef?.name || edge.source,
+            targetLabel: target?.label || targetDef?.name || edge.target,
+            sourceType: sourcePort?.type || "data",
+            x: e.clientX,
+            y: e.clientY,
+          });
+        }}
+        onEdgeMouseLeave={() => setHoveredEdgeInfo(null)}
         onNodeDragStart={() => recordHistory()}
         deleteKeyCode={["Backspace", "Delete"]}
         edgesFocusable={true}
@@ -408,14 +458,30 @@ function CanvasContent() {
         }}
         fitView
         colorMode="dark"
-        className="bg-[#080a0f]"
+        className="bg-transparent"
+        proOptions={{ hideAttribution: true }}
       >
-        <Background gap={24} size={1.2} color="#232a3d" />
-        <Controls className="!bg-black/60 !backdrop-blur-xl !border-white/10 !text-slate-300 rounded-xl overflow-hidden shadow-2xl" />
+        <Background gap={24} size={1.2} color="rgba(255, 255, 255, 0.08)" />
+        <Controls className="!bg-[#090d18]/80 !backdrop-blur-xl !border-white/10 !text-slate-300 rounded-xl overflow-hidden shadow-2xl" />
         <MiniMap
-          nodeColor="#f59e0b"
-          maskColor="rgba(7, 10, 16, 0.75)"
-          className="!bg-black/60 !backdrop-blur-xl !border-white/10 rounded-xl overflow-hidden shadow-2xl"
+          nodeColor={(n) => {
+            const data = n.data as BlockNodeData | undefined;
+            if (data?.state === "failed") return "#f43f5e";
+            if (data?.state === "running") return "#38bdf8";
+            if (data?.state === "success") return "#10b981";
+            return "#10b981";
+          }}
+          nodeStrokeColor="#34d399"
+          nodeStrokeWidth={2}
+          nodeBorderRadius={4}
+          maskColor="rgba(10, 14, 26, 0.65)"
+          maskStrokeColor="#10b981"
+          maskStrokeWidth={2}
+          zoomable
+          pannable
+          ariaLabel="Canvas MiniMap"
+          className="!bg-[#0b0f19] !border-white/20 !rounded-xl !overflow-hidden !shadow-2xl"
+          style={{ width: 170, height: 115 }}
         />
       </ReactFlow>
     </div>

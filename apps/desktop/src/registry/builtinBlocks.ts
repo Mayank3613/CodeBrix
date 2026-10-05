@@ -142,6 +142,83 @@ export const BUILTIN_ML_BLOCKS: BlockDefinition[] = [
     },
     tags: ["prep", "outlier", "iqr", "filter", "anomalies"],
   },
+  {
+    id: "prep.standard_scaler",
+    name: "Standard Scaler (Z-Score)",
+    category: "preprocessing",
+    version: "0.1.0",
+    description: "Standardizes numeric features by removing the mean and scaling to unit variance.",
+    inputs: [
+      { id: "dataset_in", name: "Input DataFrame", type: "dataframe", direction: "input", required: true },
+    ],
+    outputs: [
+      { id: "dataset_out", name: "Scaled DataFrame", type: "dataframe", direction: "output" },
+    ],
+    configSchema: {
+      with_mean: { name: "with_mean", label: "Center Data with Mean", type: "boolean", defaultValue: true },
+      with_std: { name: "with_std", label: "Scale to Unit Variance", type: "boolean", defaultValue: true },
+    },
+    tags: ["prep", "scaler", "standard", "zscore", "normalize"],
+  },
+  {
+    id: "prep.minmax_scaler",
+    name: "MinMax Scaler [0, 1]",
+    category: "preprocessing",
+    version: "0.1.0",
+    description: "Scales features to a given range [min, max], typically between zero and one.",
+    inputs: [
+      { id: "dataset_in", name: "Input DataFrame", type: "dataframe", direction: "input", required: true },
+    ],
+    outputs: [
+      { id: "dataset_out", name: "Normalized DataFrame", type: "dataframe", direction: "output" },
+    ],
+    configSchema: {
+      feature_range_min: { name: "feature_range_min", label: "Range Min", type: "number", defaultValue: 0 },
+      feature_range_max: { name: "feature_range_max", label: "Range Max", type: "number", defaultValue: 1 },
+    },
+    tags: ["prep", "scaler", "minmax", "normalize", "range"],
+  },
+  {
+    id: "prep.robust_scaler",
+    name: "Robust Scaler (Median / IQR)",
+    category: "preprocessing",
+    version: "0.1.0",
+    description: "Scales features using statistics that are robust to statistical outliers by removing the median and scaling via IQR.",
+    inputs: [
+      { id: "dataset_in", name: "Input DataFrame", type: "dataframe", direction: "input", required: true },
+    ],
+    outputs: [
+      { id: "dataset_out", name: "Robust Scaled DataFrame", type: "dataframe", direction: "output" },
+    ],
+    configSchema: {},
+    tags: ["prep", "scaler", "robust", "outliers", "iqr"],
+  },
+  {
+    id: "prep.encoder",
+    name: "Categorical Encoder (One-Hot)",
+    category: "preprocessing",
+    version: "0.1.0",
+    description: "Converts categorical text variables into dummy/indicator numeric columns using One-Hot Encoding.",
+    inputs: [
+      { id: "dataset_in", name: "Input DataFrame", type: "dataframe", direction: "input", required: true },
+    ],
+    outputs: [
+      { id: "dataset_out", name: "Encoded DataFrame", type: "dataframe", direction: "output" },
+    ],
+    configSchema: {
+      method: {
+        name: "method",
+        label: "Encoding Method",
+        type: "select",
+        defaultValue: "onehot",
+        options: [
+          { label: "One-Hot Encoding", value: "onehot" },
+          { label: "Label Encoding", value: "label" },
+        ],
+      },
+    },
+    tags: ["prep", "encoder", "onehot", "categorical", "dummy"],
+  },
 
   // ─── SUPERVISED LEARNING: CLASSIFICATION ──────────────────────────
   {
@@ -432,6 +509,23 @@ export const BUILTIN_ML_BLOCKS: BlockDefinition[] = [
     ],
     outputs: [
       { id: "dataset_out", name: "Reduced Features", type: "dataframe", direction: "output" },
+    ],
+    configSchema: {
+      n_components: { name: "n_components", label: "Target Dimensions", type: "number", defaultValue: 2, min: 1, max: 50 },
+    },
+    tags: ["prep", "pca", "dimensionality", "decomposition", "unsupervised"],
+  },
+  {
+    id: "prep.pca",
+    name: "Principal Component Analysis (PCA)",
+    category: "preprocessing",
+    version: "0.1.0",
+    description: "Linear dimensionality reduction technique decomposing features into orthogonal principal axes.",
+    inputs: [
+      { id: "dataset_in", name: "Input Features", type: "dataframe", direction: "input", required: true },
+    ],
+    outputs: [
+      { id: "dataset_out", name: "Decomposed Features", type: "dataframe", direction: "output" },
     ],
     configSchema: {
       n_components: { name: "n_components", label: "Target Dimensions", type: "number", defaultValue: 2, min: 1, max: 50 },

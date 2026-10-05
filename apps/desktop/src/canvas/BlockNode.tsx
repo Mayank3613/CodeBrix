@@ -76,7 +76,7 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
   };
 
   // Dynamic visual styling combining selection, execution status, and validation issues
-  let borderAndRingClass = "border-white/12 hover:border-white/25";
+  let borderAndRingClass = "border-white/15 hover:border-white/30";
   if (hasError) {
     borderAndRingClass = "border-rose-500/80 ring-2 ring-rose-500/40 shadow-[0_0_20px_rgba(244,63,94,0.3)]";
   } else if (isRunning) {
@@ -91,15 +91,22 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
     ? "ring-2 ring-cyan-400 shadow-[0_0_24px_rgba(6,182,212,0.4)] border-cyan-400"
     : "";
 
+  // Extract brief parameter summary entries for quick overview
+  const schema = def?.configSchema || {};
+  const paramEntries = Object.entries(config).filter(([k, v]) => {
+    if (k === "filePath" || k === "filepath" || k === "path" || k === "file") return false;
+    return v !== undefined && v !== "" && typeof v !== "object";
+  });
+
   return (
     <div
-      className={`min-w-[225px] rounded-2xl backdrop-blur-2xl bg-[#0e1320]/82 border transition-all text-xs select-none shadow-[0_16px_36px_-6px_rgba(0,0,0,0.65),inset_0_1px_1px_0_rgba(255,255,255,0.16)] ${borderAndRingClass} ${selectionClass}`}
+      className={`min-w-[245px] rounded-2xl backdrop-blur-2xl bg-[#0c1224]/95 border transition-all text-xs select-none shadow-[0_18px_38px_-6px_rgba(0,0,0,0.75),inset_0_1px_1.5px_0_rgba(255,255,255,0.22)] relative ${borderAndRingClass} ${selectionClass}`}
     >
       {/* Node Header */}
-      <div className="px-3.5 py-2.5 border-b border-white/10 bg-gradient-to-r from-white/[0.07] to-transparent rounded-t-2xl flex items-center justify-between">
+      <div className="px-3.5 py-2.5 border-b border-white/15 bg-gradient-to-r from-white/[0.10] to-transparent rounded-t-2xl flex items-center justify-between">
         <div className="flex items-center gap-2 truncate">
           <span
-            className={`w-2 h-2 rounded-full shrink-0 ${
+            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
               isRunning
                 ? "bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.9)] animate-ping"
                 : isSuccess
@@ -127,7 +134,7 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
                   setIsEditing(false);
                 }
               }}
-              className="bg-black/70 border border-cyan-400 rounded px-1.5 py-0.5 text-xs text-white font-semibold outline-none w-32 shadow-inner"
+              className="bg-black/90 border border-cyan-400 rounded px-2 py-0.5 text-xs text-white font-semibold outline-none w-36 shadow-inner"
             />
           ) : (
             <div
@@ -135,10 +142,10 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
                 e.stopPropagation();
                 setIsEditing(true);
               }}
-              className="flex items-center gap-1.5 group/label cursor-text truncate max-w-[140px]"
+              className="flex items-center gap-1.5 group/label cursor-text truncate max-w-[155px]"
               title="Double-click to rename this block"
             >
-              <span className="font-semibold text-white tracking-tight truncate">
+              <span className="font-semibold text-white text-[13px] tracking-tight truncate">
                 {currentLabel}
               </span>
               <button
@@ -147,10 +154,10 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
                   e.stopPropagation();
                   setIsEditing(true);
                 }}
-                className="opacity-0 group-hover/label:opacity-100 text-slate-400 hover:text-cyan-300 transition-opacity p-0.5 cursor-pointer"
+                className="opacity-0 group-hover/label:opacity-100 text-slate-300 hover:text-cyan-300 transition-opacity p-0.5 cursor-pointer"
                 title="Rename block"
               >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M12 20h9" />
                   <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                 </svg>
@@ -159,34 +166,36 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
           )}
         </div>
 
-        <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.06] text-slate-300 border border-white/10">
-          {def?.category || "block"}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-mono font-medium uppercase px-2 py-0.5 rounded-full bg-white/[0.08] text-slate-200 border border-white/15">
+            {def?.category || "block"}
+          </span>
+        </div>
       </div>
 
       {/* Node Content & Ports */}
-      <div className="p-3 space-y-2">
-        {/* Status bar slot - Shows dataset name or clean description, NOT random blk-rf */}
-        <div className="flex items-center justify-between text-[10px] font-mono border-b border-white/5 pb-1.5">
+      <div className="p-3.5 space-y-2.5">
+        {/* Status bar slot - Shows dataset name or clean description */}
+        <div className="flex items-center justify-between text-[11px] font-mono border-b border-white/10 pb-1.5">
           {datasetName ? (
             <div
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 font-mono text-[9px] truncate max-w-[130px] shadow-sm"
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 font-mono text-[10px] truncate max-w-[140px] shadow-sm font-medium"
               title={`Loaded dataset: ${datasetName}`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse shrink-0" />
               <span className="truncate font-semibold">{datasetName}</span>
             </div>
           ) : (
-            <span className="text-slate-400 truncate max-w-[120px] text-[10px]" title={def?.name || "Block"}>
+            <span className="text-slate-300 font-medium truncate max-w-[130px] text-[11px]" title={def?.name || "Block"}>
               {def?.name || "Block"}
             </span>
           )}
 
-          <div className="flex items-center gap-1.5 font-semibold">
+          <div className="flex items-center gap-1.5 font-medium text-[11px]">
             {isRunning ? (
-              <span className="text-cyan-400 flex items-center gap-1">
+              <span className="text-cyan-300 flex items-center gap-1">
                 <svg
-                  className="animate-spin h-2.5 w-2.5 text-cyan-400"
+                  className="animate-spin h-3 w-3 text-cyan-300"
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
@@ -208,32 +217,52 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
                 <span>Running</span>
               </span>
             ) : isSuccess ? (
-              <span className="text-emerald-400 flex items-center gap-1">
-                <CheckIcon size={11} />
+              <span className="text-emerald-300 flex items-center gap-1">
+                <CheckIcon size={12} />
                 <span>Completed</span>
               </span>
             ) : isFailed ? (
-              <span className="text-rose-400 flex items-center gap-1">
-                <CloseIcon size={10} />
+              <span className="text-rose-300 flex items-center gap-1">
+                <CloseIcon size={11} />
                 <span>Failed</span>
               </span>
             ) : (
-              <span className="text-slate-500 flex items-center gap-1 font-normal">
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+              <span className="text-slate-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
                 <span>Idle</span>
               </span>
             )}
           </div>
         </div>
 
+        {/* Compact Parameter Badges visible directly on block */}
+        {paramEntries.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-hidden flex-wrap pt-0.5">
+            {paramEntries.slice(0, 3).map(([k, v]) => (
+              <span
+                key={k}
+                className="text-[9.5px] font-mono px-2 py-0.5 rounded bg-white/[0.06] text-slate-200 border border-white/15 truncate max-w-[100px] font-medium"
+                title={`${k}: ${String(v)}`}
+              >
+                {k}: {String(v)}
+              </span>
+            ))}
+            {paramEntries.length > 3 && (
+              <span className="text-[9px] font-mono text-slate-400 font-medium">
+                +{paramEntries.length - 3}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Validation Error banner if present */}
         {hasError && (
-          <div className="p-1.5 rounded bg-rose-950/70 border border-rose-800/90 text-[10px] text-rose-300 leading-tight flex items-start gap-1">
-            <AlertTriangleIcon size={12} className="shrink-0 text-rose-400 mt-0.5" />
+          <div className="p-2 rounded-lg bg-rose-950/80 border border-rose-800 text-[10.5px] text-rose-200 leading-tight flex items-start gap-1.5">
+            <AlertTriangleIcon size={13} className="shrink-0 text-rose-400 mt-0.5" />
             <div>
-              <span>{errors[0]?.message}</span>
+              <span className="font-medium">{errors[0]?.message}</span>
               {errors.length > 1 && (
-                <span className="text-rose-400 font-mono ml-1 text-[9px]">
+                <span className="text-rose-300 font-mono ml-1 text-[9.5px]">
                   (+{errors.length - 1} more)
                 </span>
               )}
@@ -242,20 +271,20 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
         )}
 
         {/* Input & Output Ports */}
-        <div className="grid grid-cols-2 gap-2 pt-1">
+        <div className="grid grid-cols-2 gap-3 pt-1">
           {/* Inputs */}
           <div className="space-y-2">
             {inputs.map((port) => {
               const theme = PORT_COLORS[port.type] || PORT_COLORS.any;
               return (
-                <div key={port.id} className="relative flex items-center gap-1.5">
+                <div key={port.id} className="relative flex items-center gap-2">
                   <Handle
                     type="target"
                     position={Position.Left}
                     id={port.id}
-                    className={`!w-2.5 !h-2.5 !-left-4.5 ${theme.bg} !border-2 ${theme.border} transition-transform hover:scale-125`}
+                    className={`!w-3 !h-3 !-left-5 ${theme.bg} !border-2 ${theme.border} transition-transform hover:scale-125 shadow-sm`}
                   />
-                  <span className={`text-[10px] font-mono truncate ${theme.text}`}>
+                  <span className={`text-[11px] font-mono font-medium truncate ${theme.text}`}>
                     {port.name}
                   </span>
                 </div>
@@ -268,15 +297,15 @@ function BlockNodeComponent({ id, data, selected }: NodeProps) {
             {outputs.map((port) => {
               const theme = PORT_COLORS[port.type] || PORT_COLORS.any;
               return (
-                <div key={port.id} className="relative flex items-center justify-end gap-1.5">
-                  <span className={`text-[10px] font-mono truncate ${theme.text}`}>
+                <div key={port.id} className="relative flex items-center justify-end gap-2">
+                  <span className={`text-[11px] font-mono font-medium truncate ${theme.text}`}>
                     {port.name}
                   </span>
                   <Handle
                     type="source"
                     position={Position.Right}
                     id={port.id}
-                    className={`!w-2.5 !h-2.5 !-right-4.5 ${theme.bg} !border-2 ${theme.border} transition-transform hover:scale-125`}
+                    className={`!w-3 !h-3 !-right-5 ${theme.bg} !border-2 ${theme.border} transition-transform hover:scale-125 shadow-sm`}
                   />
                 </div>
               );

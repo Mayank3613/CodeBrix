@@ -9,6 +9,7 @@ import type {
 } from "@codebrix/types";
 import { createIrisWorkflowMock } from "@codebrix/shared";
 import { useProjectStore } from "./projectStore";
+import { autoLayoutGraphLeftToRight } from "../canvas/layout";
 
 const MAX_HISTORY = 50;
 
@@ -43,6 +44,7 @@ export interface WorkflowState {
   addConnection: (connection: Connection) => void;
   removeConnection: (connectionId: string) => void;
   clearWorkflow: () => void;
+  autoLayout: () => void;
 }
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
@@ -322,4 +324,26 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         future: [],
       };
     }),
+
+  autoLayout: () => {
+    const { graph, recordHistory } = get();
+    recordHistory();
+    const newPositions = autoLayoutGraphLeftToRight(graph);
+    const updatedBlocks = { ...graph.blocks };
+    for (const [id, pos] of Object.entries(newPositions)) {
+      if (updatedBlocks[id]) {
+        updatedBlocks[id] = {
+          ...updatedBlocks[id],
+          position: pos,
+        };
+      }
+    }
+    useProjectStore.getState().markDirty(true);
+    set({
+      graph: {
+        ...graph,
+        blocks: updatedBlocks,
+      },
+    });
+  },
 }));

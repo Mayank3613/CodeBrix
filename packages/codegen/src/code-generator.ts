@@ -112,6 +112,13 @@ export class PythonCodeGenerator {
           `${indent4}"event": "block_start",\n` +
           `${indent4}"payload": {"blockId": "${block.id}"},\n` +
           `${indent4}"timestamp": iso_now()\n` +
+          `${indent3}})\n` +
+          `${indent3}emit_json({\n` +
+          `${indent4}"type": "console",\n` +
+          `${indent4}"stream": "stdout",\n` +
+          `${indent4}"blockId": "${block.id}",\n` +
+          `${indent4}"text": f"[Step ${i + 1}/${plan.executionOrder.length}] Running ${block.label ?? block.id} (${block.definitionId})...",\n` +
+          `${indent4}"timestamp": iso_now()\n` +
           `${indent3}})\n`;
       }
 
@@ -119,6 +126,13 @@ export class PythonCodeGenerator {
 
       if (opts.includeProtocolHooks) {
         blockStep +=
+          `${indent3}emit_json({\n` +
+          `${indent4}"type": "console",\n` +
+          `${indent4}"stream": "stdout",\n` +
+          `${indent4}"blockId": "${block.id}",\n` +
+          `${indent4}"text": f"[Step ${i + 1}/${plan.executionOrder.length}] ${block.label ?? block.id} completed successfully.",\n` +
+          `${indent4}"timestamp": iso_now()\n` +
+          `${indent3}})\n` +
           `${indent3}emit_json({\n` +
           `${indent4}"event": "block_done",\n` +
           `${indent4}"payload": {"blockId": "${block.id}", "status": "success"},\n` +
@@ -130,6 +144,13 @@ export class PythonCodeGenerator {
         `${indent2}except Exception as e:\n` +
         (opts.includeProtocolHooks
           ? `${indent3}emit_json({\n` +
+            `${indent4}"type": "console",\n` +
+            `${indent4}"stream": "stderr",\n` +
+            `${indent4}"blockId": "${block.id}",\n` +
+            `${indent4}"text": f"[Error in ${block.label ?? block.id}]: {e}",\n` +
+            `${indent4}"timestamp": iso_now()\n` +
+            `${indent3}})\n` +
+            `${indent3}emit_json({\n` +
             `${indent4}"event": "block_error",\n` +
             `${indent4}"payload": {\n` +
             `${indent4}    "blockId": "${block.id}",\n` +
@@ -197,6 +218,12 @@ export class PythonCodeGenerator {
           `${indent2}"event": "status",\n` +
           `${indent2}"payload": "running",\n` +
           `${indent2}"timestamp": iso_now()\n` +
+          `${indent1}})\n` +
+          `${indent1}emit_json({\n` +
+          `${indent2}"type": "console",\n` +
+          `${indent2}"stream": "stdout",\n` +
+          `${indent2}"text": f"[Pipeline] Starting execution: ${graph.name} (${plan.executionOrder.length} steps)...",\n` +
+          `${indent2}"timestamp": iso_now()\n` +
           `${indent1}})`
         : `${indent1}pass`,
       "",
@@ -204,6 +231,12 @@ export class PythonCodeGenerator {
       stepCodeBlocks.join("\n"),
       opts.includeProtocolHooks
         ? `${indent2}emit_json({\n` +
+          `${indent3}"type": "console",\n` +
+          `${indent3}"stream": "stdout",\n` +
+          `${indent3}"text": f"[Pipeline] Successfully completed all ${plan.executionOrder.length} steps.",\n` +
+          `${indent3}"timestamp": iso_now()\n` +
+          `${indent2}})\n` +
+          `${indent2}emit_json({\n` +
           `${indent3}"event": "done",\n` +
           `${indent3}"payload": {"exitCode": 0, "status": "success"},\n` +
           `${indent3}"timestamp": iso_now()\n` +

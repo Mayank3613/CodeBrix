@@ -42,7 +42,7 @@ export const useUiStore = create<UiState>((set) => ({
   isPaletteOpen: true,
   isPropertiesOpen: true,
   isOutputOpen: true,
-  paletteWidth: 280,
+  paletteWidth: 320,
   propertiesWidth: 300,
   outputPanelHeight: 260,
   zoomLevel: 1,
@@ -68,7 +68,7 @@ export const useUiStore = create<UiState>((set) => ({
 
   setPaletteWidth: (width: number) =>
     set({
-      paletteWidth: Math.max(200, Math.min(480, Math.round(width))),
+      paletteWidth: Math.max(240, Math.min(560, Math.round(width))),
     }),
 
   setPropertiesWidth: (width: number) =>
@@ -91,11 +91,11 @@ export const useUiStore = create<UiState>((set) => ({
       selectedBlockId: null,
       focusedBlockId: null,
       focusTarget: null,
-      activeOutputTab: "metrics",
+      activeOutputTab: "console",
       isPaletteOpen: true,
       isPropertiesOpen: true,
       isOutputOpen: true,
-      paletteWidth: 280,
+      paletteWidth: 320,
       propertiesWidth: 300,
       outputPanelHeight: 260,
       zoomLevel: 1,

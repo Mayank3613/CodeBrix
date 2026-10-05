@@ -83,6 +83,8 @@ export function toReactFlowGraph(graph: WorkflowGraph): {
       x: block.position.x,
       y: block.position.y,
     },
+    width: 245,
+    height: 145,
     data: {
       definitionId: block.definitionId,
       label: block.label ?? block.definitionId,

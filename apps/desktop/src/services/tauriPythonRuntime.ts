@@ -371,27 +371,35 @@ export async function runPythonExecution(
           store.setBlockStatus(bid, "queued");
         }
 
-        const b0 = sequence[0] || "blk-csv";
-        store.setBlockStatus(b0, "running");
-        store.setActiveBlockId(b0);
-        store.setStatusMessage("Loading dataset into pandas DataFrame...");
         append({
           type: "console",
           stream: "stdout",
-          text: "[data.csv_loader] Dataset loaded successfully",
-          blockId: b0,
+          text: `[Pipeline] Starting execution (${sequence.length} steps)...`,
           timestamp: new Date().toISOString(),
         });
 
+        const b0 = sequence[0] || "blk-csv";
+        store.setBlockStatus(b0, "running");
+        store.setActiveBlockId(b0);
+        store.setStatusMessage(`Executing step: ${b0}...`);
+
         setTimeout(() => {
-          for (const bid of sequence) {
+          sequence.forEach((bid, idx) => {
             store.setBlockStatus(bid, "success");
             blockResults[bid] = {
               blockId: bid,
               status: "success",
               completedAt: new Date().toISOString(),
             };
-          }
+
+            append({
+              type: "console",
+              stream: "stdout",
+              text: `[Step ${idx + 1}/${sequence.length}] ${bid} executed successfully.`,
+              blockId: bid,
+              timestamp: new Date().toISOString(),
+            });
+          });
 
           // Emit tabular dataset preview
           append({
@@ -433,6 +441,60 @@ export async function runPythonExecution(
                 [0, 0, 10],
               ],
             },
+            timestamp: new Date().toISOString(),
+          });
+
+          // Emit visual confusion matrix image
+          append({
+            type: "image",
+            title: "Confusion Matrix Heatmap",
+            format: "confusion_matrix",
+            data: JSON.stringify([
+              [10, 0, 0],
+              [0, 9, 1],
+              [0, 0, 10],
+            ]),
+            timestamp: new Date().toISOString(),
+          });
+
+          // Emit visual class accuracy performance graph
+          const svgChart = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 180" width="100%" height="180">
+            <rect width="100%" height="100%" fill="#090d18" rx="8"/>
+            <text x="20" y="28" fill="#e2e8f0" font-family="system-ui, sans-serif" font-size="12" font-weight="600">Classification Accuracy: 96.67%</text>
+            <text x="20" y="44" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="10">Accuracy across 3 Iris classes (Setosa, Versicolor, Virginica)</text>
+            <g transform="translate(25, 60)">
+              <!-- Class Setosa -->
+              <text x="0" y="16" fill="#cbd5e1" font-family="monospace" font-size="11">Setosa</text>
+              <rect x="75" y="4" width="260" height="15" rx="3" fill="#1e293b"/>
+              <rect x="75" y="4" width="260" height="15" rx="3" fill="#10b981"/>
+              <text x="345" y="16" fill="#34d399" font-family="monospace" font-size="11" font-weight="bold">100%</text>
+
+              <!-- Class Versicolor -->
+              <text x="0" y="46" fill="#cbd5e1" font-family="monospace" font-size="11">Versicolor</text>
+              <rect x="75" y="34" width="260" height="15" rx="3" fill="#1e293b"/>
+              <rect x="75" y="34" width="234" height="15" rx="3" fill="#06b6d4"/>
+              <text x="345" y="46" fill="#38bdf8" font-family="monospace" font-size="11" font-weight="bold">90%</text>
+
+              <!-- Class Virginica -->
+              <text x="0" y="76" fill="#cbd5e1" font-family="monospace" font-size="11">Virginica</text>
+              <rect x="75" y="64" width="260" height="15" rx="3" fill="#1e293b"/>
+              <rect x="75" y="64" width="260" height="15" rx="3" fill="#10b981"/>
+              <text x="345" y="76" fill="#34d399" font-family="monospace" font-size="11" font-weight="bold">100%</text>
+            </g>
+          </svg>`;
+
+          append({
+            type: "image",
+            title: "Class Accuracy Distribution Plot",
+            format: "svg",
+            data: svgChart,
+            timestamp: new Date().toISOString(),
+          });
+
+          append({
+            type: "console",
+            stream: "stdout",
+            text: `[Pipeline] Execution completed successfully (${sequence.length} steps).`,
             timestamp: new Date().toISOString(),
           });
 
