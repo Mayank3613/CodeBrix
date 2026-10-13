@@ -154,7 +154,7 @@ code, pre, .font-mono {
 .cb-palette    { grid-area: palette; }
 .cb-canvas     { grid-area: canvas; }
 .cb-properties { grid-area: properties; }
-.cb-output     { grid-area: output; }
+.cb-output     { grid-area: output; min-width: 0; min-height: 0; }
 
 /* ─── Floating Glassmorphic Bento Frames ──────────── */
 .cb-bento-frame {

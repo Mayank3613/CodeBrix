@@ -20,6 +20,13 @@ describe("Zustand Stores (D1-1.5)", () => {
   });
 
   describe("workflowStore", () => {
+    it("starts with a pristine blank playground canvas with no preloaded blocks", () => {
+      useWorkflowStore.getState().clearWorkflow();
+      expect(Object.keys(useWorkflowStore.getState().graph.blocks)).toHaveLength(0);
+      expect(useWorkflowStore.getState().graph.connections).toHaveLength(0);
+      expect(useProjectStore.getState().projectName).toBe("Untitled Project");
+    });
+
     it("manages blocks and connections correctly", () => {
       const dummyDef: BlockDefinition = {
         id: "test.dummy",

@@ -157,7 +157,26 @@ const BUILT_IN_MANIFESTS: Record<string, { manifest: LibraryManifest; blocks: Bl
           { id: "ground_truth_in", name: "Ground Truth", type: "series", direction: "input" },
         ],
         outputs: [{ id: "matrix_out", name: "Matrix Plot", type: "figure", direction: "output" }],
-        configSchema: {},
+        configSchema: {
+          normalize: {
+            name: "normalize",
+            label: "Normalization",
+            type: "select",
+            defaultValue: "none",
+            options: [
+              { label: "None (Raw Counts)", value: "none" },
+              { label: "True (Rows / Recall)", value: "true" },
+              { label: "Pred (Columns / Precision)", value: "pred" },
+              { label: "All (Total Population)", value: "all" },
+            ],
+          },
+          labels: {
+            name: "labels",
+            label: "Class Labels (optional, comma-separated)",
+            type: "string",
+            defaultValue: "",
+          },
+        },
       },
     ],
   },

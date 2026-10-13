@@ -309,6 +309,17 @@ export default function Palette() {
   // Active VS Code sidebar tab: "playground" | "library" | "custom" | "templates"
   const [activeSection, setActiveSection] = useState<PaletteSection>("library");
 
+  useEffect(() => {
+    const handleSwitchSection = (e: Event) => {
+      const customEvent = e as CustomEvent<{ section: PaletteSection }>;
+      if (customEvent.detail?.section) {
+        setActiveSection(customEvent.detail.section);
+      }
+    };
+    window.addEventListener("codebrix:switch-palette-section", handleSwitchSection);
+    return () => window.removeEventListener("codebrix:switch-palette-section", handleSwitchSection);
+  }, []);
+
   // Search & Filters
   const [search, setSearch] = useState("");
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>("all");

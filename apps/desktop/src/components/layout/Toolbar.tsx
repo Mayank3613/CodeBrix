@@ -9,7 +9,7 @@ import {
   useUiStore,
   useProjectStore,
 } from "../../stores";
-import { createIrisWorkflowMock } from "@codebrix/shared";
+import { PIPELINE_TEMPLATES, type PipelineTemplate } from "../../templates/pipelineTemplates";
 import {
   serializeCbxProject,
   parseCbxProject,
@@ -34,12 +34,15 @@ import {
   LayersIcon,
   TerminalIcon,
   LayoutTemplateIcon,
+  SparklesIcon,
 } from "../common/Icons";
 
 export default function Toolbar() {
   const [isValidating, setIsValidating] = useState(false);
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
+  const [isExamplesMenuOpen, setIsExamplesMenuOpen] = useState(false);
   const fileMenuRef = useRef<HTMLDivElement>(null);
+  const examplesMenuRef = useRef<HTMLDivElement>(null);
 
   const graph = useWorkflowStore((s) => s.graph);
   const setGraph = useWorkflowStore((s) => s.setGraph);
@@ -86,11 +89,14 @@ export default function Toolbar() {
     return () => clearInterval(timer);
   }, [checkRecovery]);
 
-  // Click outside to close file menu
+  // Click outside to close file & examples menus
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (fileMenuRef.current && !fileMenuRef.current.contains(event.target as Node)) {
         setIsFileMenuOpen(false);
+      }
+      if (examplesMenuRef.current && !examplesMenuRef.current.contains(event.target as Node)) {
+        setIsExamplesMenuOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -98,13 +104,41 @@ export default function Toolbar() {
   }, []);
 
   const handleNewProject = () => {
-    if (isDirty && !window.confirm("You have unsaved changes. Discard and create a new project?")) {
+    if (isDirty && !window.confirm("You have unsaved changes. Discard and create a new blank project?")) {
       return;
     }
     clearWorkflow();
     resetProject();
     setValidationResult(null);
     setRunState("idle");
+  };
+
+  const handleLoadExampleTemplate = (tpl: PipelineTemplate) => {
+    if (
+      isDirty &&
+      !window.confirm(`Load "${tpl.title}" template? Any unsaved changes will be discarded.`)
+    ) {
+      return;
+    }
+    const normalizedConnections = (tpl.graph.connections || []).map((c: any) => ({
+      id: c.id,
+      sourceBlockId: c.sourceBlockId ?? c.fromBlockId,
+      sourcePortId: c.sourcePortId ?? c.fromPortId,
+      targetBlockId: c.targetBlockId ?? c.toBlockId,
+      targetPortId: c.targetPortId ?? c.toPortId,
+    }));
+    setGraph({
+      ...tpl.graph,
+      connections: normalizedConnections,
+    });
+    setProjectName(tpl.title);
+    setCurrentFilePath(null);
+    markDirty(false);
+    setValidationResult(null);
+    setRunState("idle");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("codebrix:fit-view"));
+    }
   };
 
   const handleOpenProject = async () => {
@@ -452,6 +486,100 @@ export default function Toolbar() {
                       ))}
                     </>
                   )}
+
+                  <div className="my-1 border-t border-white/10" />
+
+                  <div className="px-3 py-1 text-[9.5px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>Example Pipelines</span>
+                    <span className="text-[9px] text-emerald-400 font-mono">{PIPELINE_TEMPLATES.length}</span>
+                  </div>
+
+                  {PIPELINE_TEMPLATES.map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      onClick={() => {
+                        setIsFileMenuOpen(false);
+                        handleLoadExampleTemplate(tpl);
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-emerald-500/15 flex items-center justify-between group transition-colors"
+                      title={tpl.description}
+                    >
+                      <span className="truncate pr-2 font-medium group-hover:text-emerald-300 transition-colors">
+                        {tpl.title}
+                      </span>
+                      <span className="text-[9px] font-mono text-slate-500 shrink-0">
+                        {tpl.nodeCount} nodes
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Examples Dropdown */}
+            <div className="relative" ref={examplesMenuRef}>
+              <button
+                onClick={() => setIsExamplesMenuOpen(!isExamplesMenuOpen)}
+                className={`cb-toolbar-btn text-[11px] px-2.5 py-1 rounded-md transition-all ${
+                  isExamplesMenuOpen ? "bg-white/15 text-white" : "text-slate-300 hover:text-white"
+                }`}
+                title="Example ML Pipelines & Blueprints"
+              >
+                <SparklesIcon size={12} className="text-emerald-400" />
+                <span>Examples</span>
+                <ChevronDownIcon size={10} className="text-slate-400" />
+              </button>
+
+              {isExamplesMenuOpen && (
+                <div className="absolute left-0 top-full mt-2 w-72 bg-[#0d1322]/98 backdrop-blur-2xl border border-white/15 rounded-xl shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-3 py-1 text-[9.5px] font-mono font-bold text-slate-400 uppercase tracking-wider border-b border-white/10 flex items-center justify-between">
+                    <span>Example Pipelines</span>
+                    <span className="text-[9px] text-emerald-400 font-mono">{PIPELINE_TEMPLATES.length} blueprints</span>
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto py-1">
+                    {PIPELINE_TEMPLATES.map((tpl) => (
+                      <button
+                        key={tpl.id}
+                        onClick={() => {
+                          setIsExamplesMenuOpen(false);
+                          handleLoadExampleTemplate(tpl);
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-xs text-slate-200 hover:text-white hover:bg-emerald-500/15 flex flex-col gap-0.5 group transition-colors"
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className="font-semibold text-white group-hover:text-emerald-300 transition-colors">
+                            {tpl.title}
+                          </span>
+                          <span className="text-[9px] font-mono text-emerald-400/90 px-1.5 py-0.2 rounded bg-emerald-500/10 border border-emerald-500/20">
+                            {tpl.nodeCount} nodes
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 line-clamp-1 truncate">
+                          {tpl.description}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="p-1 border-t border-white/10">
+                    <button
+                      onClick={() => {
+                        setIsExamplesMenuOpen(false);
+                        if (!isPaletteOpen) togglePalette();
+                        if (typeof window !== "undefined") {
+                          window.dispatchEvent(
+                            new CustomEvent("codebrix:switch-palette-section", {
+                              detail: { section: "templates" },
+                            })
+                          );
+                        }
+                      }}
+                      className="w-full text-center py-1 text-[11px] font-medium text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Browse full template gallery in Palette →
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

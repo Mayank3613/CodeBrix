@@ -61,4 +61,45 @@ describe("Tauri Python Runtime Client (D1-3.6)", () => {
     expect(useExecutionStore.getState().runState).toBe("failed");
     expect(useExecutionStore.getState().statusMessage).toContain("aborted by user");
   });
+
+  describe("Interactive Terminal Execution", () => {
+    it("handles built-in help and status commands without invoking subprocess", async () => {
+      const { executeTerminalInteractiveCommand } = await import("./tauriPythonRuntime");
+
+      await executeTerminalInteractiveCommand("help");
+      let outputs = useExecutionStore.getState().outputs;
+      expect(outputs.some((o) => o.type === "console" && o.text.includes("CodeBrix Interactive Terminal"))).toBe(true);
+
+      await executeTerminalInteractiveCommand("status");
+      outputs = useExecutionStore.getState().outputs;
+      expect(outputs.some((o) => o.type === "console" && o.text.includes("[System Status]"))).toBe(true);
+    });
+
+    it("clears console logs when clear command is entered", async () => {
+      const { executeTerminalInteractiveCommand } = await import("./tauriPythonRuntime");
+
+      useExecutionStore.getState().addOutput({
+        type: "console",
+        stream: "stdout",
+        text: "Old log entry",
+        timestamp: new Date().toISOString(),
+      });
+      useExecutionStore.getState().addOutput({
+        type: "metrics",
+        title: "Model Accuracy",
+        metrics: { accuracy: 0.95 },
+        timestamp: new Date().toISOString(),
+      });
+
+      expect(useExecutionStore.getState().outputs.length).toBe(2);
+
+      await executeTerminalInteractiveCommand("clear");
+
+      // Console log cleared, but non-console output (metrics) preserved!
+      const remaining = useExecutionStore.getState().outputs;
+      expect(remaining.length).toBe(1);
+      expect(remaining[0]?.type).toBe("metrics");
+    });
+  });
 });
+

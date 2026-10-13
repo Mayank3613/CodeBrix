@@ -13,9 +13,10 @@ import {
 import "@xyflow/react/dist/style.css";
 import { BlockNode } from "./BlockNode";
 import { toReactFlowGraph, type BlockNodeData } from "./adapter";
-import { useWorkflowStore, useUiStore } from "../stores";
+import { useWorkflowStore, useUiStore, useProjectStore } from "../stores";
 import { blockRegistry } from "../registry";
-import { CheckIcon, CloseIcon } from "../components/common/Icons";
+import { CheckIcon, CloseIcon, SparklesIcon } from "../components/common/Icons";
+import { PIPELINE_TEMPLATES } from "../templates/pipelineTemplates";
 
 const nodeTypes = {
   blockNode: BlockNode,
@@ -51,12 +52,35 @@ function CanvasContent() {
   // Dedicated selection state for connections (edges)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
+  // Automatically fit nodes within canvas bounds when a graph or template is loaded
+  const blockKeys = useMemo(
+    () => Object.keys(graph.blocks).sort().join(","),
+    [graph.blocks]
+  );
+
+  useEffect(() => {
+    if (Object.keys(graph.blocks).length === 0) return;
+    const t1 = setTimeout(() => {
+      fitView({ duration: 400, padding: 0.2 });
+    }, 80);
+    const t2 = setTimeout(() => {
+      fitView({ duration: 400, padding: 0.2 });
+    }, 280);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [graph.id, blockKeys, fitView]);
+
   // Listen to codebrix:fit-view event (e.g. after Format or Reset)
   useEffect(() => {
     const handleFitView = () => {
       setTimeout(() => {
-        fitView({ duration: 600, padding: 0.2 });
-      }, 60);
+        fitView({ duration: 500, padding: 0.2 });
+      }, 80);
+      setTimeout(() => {
+        fitView({ duration: 500, padding: 0.2 });
+      }, 280);
     };
     window.addEventListener("codebrix:fit-view", handleFitView);
     return () => window.removeEventListener("codebrix:fit-view", handleFitView);
@@ -484,6 +508,52 @@ function CanvasContent() {
           style={{ width: 170, height: 115 }}
         />
       </ReactFlow>
+
+      {/* Pristine Blank Playground Empty State */}
+      {Object.keys(graph.blocks).length === 0 && (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
+          <div className="text-center p-8 rounded-3xl bg-[#090d18]/85 backdrop-blur-2xl border border-white/10 shadow-[0_24px_64px_rgba(0,0,0,0.8)] max-w-sm pointer-events-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500/20 via-emerald-500/20 to-indigo-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto mb-3 text-emerald-400 shadow-[0_0_24px_rgba(16,185,129,0.25)]">
+              <SparklesIcon size={24} />
+            </div>
+            <h3 className="text-base font-bold text-white mb-1.5 tracking-tight">
+              Blank Playground
+            </h3>
+            <p className="text-xs text-slate-400 mb-5 leading-relaxed">
+              Drag blocks from the <span className="text-cyan-300 font-medium">Palette</span> to build your workflow, or start from an example pipeline.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+              <button
+                onClick={() => {
+                  const irisTpl = PIPELINE_TEMPLATES.find((t) => t.id === "template-iris-classification");
+                  if (irisTpl) {
+                    const normalizedConnections = (irisTpl.graph.connections || []).map((c: any) => ({
+                      id: c.id,
+                      sourceBlockId: c.sourceBlockId ?? c.fromBlockId,
+                      sourcePortId: c.sourcePortId ?? c.fromPortId,
+                      targetBlockId: c.targetBlockId ?? c.toBlockId,
+                      targetPortId: c.targetPortId ?? c.toPortId,
+                    }));
+                    useWorkflowStore.getState().setGraph({
+                      ...irisTpl.graph,
+                      connections: normalizedConnections,
+                    });
+                    useProjectStore.getState().setProjectName(irisTpl.title);
+                    useProjectStore.getState().markDirty(false);
+                    setTimeout(() => {
+                      window.dispatchEvent(new CustomEvent("codebrix:fit-view"));
+                    }, 80);
+                  }
+                }}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs transition-all shadow-[0_4px_16px_rgba(16,185,129,0.3)] hover:shadow-[0_6px_20px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2 cursor-pointer border border-emerald-400/30 active:scale-95"
+              >
+                <SparklesIcon size={13} />
+                <span>Load Iris Example</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

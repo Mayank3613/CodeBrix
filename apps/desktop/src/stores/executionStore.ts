@@ -20,6 +20,7 @@ export interface ExecutionState {
   setStatusMessage: (msg: string | null) => void;
   addOutput: (output: OutputMessage) => void;
   clearOutputs: () => void;
+  clearConsoleLogs: () => void;
   resetExecution: () => void;
 }
 
@@ -74,7 +75,31 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       outputs: [...state.outputs, output],
     })),
 
-  clearOutputs: () => set({ outputs: [] }),
+  clearOutputs: () =>
+    set((state) => ({
+      outputs: [],
+      latestResult: state.latestResult
+        ? { ...state.latestResult, outputs: [] }
+        : null,
+    })),
+
+  clearConsoleLogs: () =>
+    set((state) => {
+      const nonConsole = state.outputs.filter(
+        (o) => o.type !== "console" && o.type !== "error"
+      );
+      return {
+        outputs: nonConsole,
+        latestResult: state.latestResult
+          ? {
+              ...state.latestResult,
+              outputs: state.latestResult.outputs.filter(
+                (o) => o.type !== "console" && o.type !== "error"
+              ),
+            }
+          : null,
+      };
+    }),
 
   resetExecution: () =>
     set({

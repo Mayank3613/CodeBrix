@@ -243,6 +243,26 @@ export const CONFUSION_MATRIX_DEFINITION: BlockDefinition = {
       direction: "output",
     },
   ],
+  configSchema: {
+    normalize: {
+      name: "normalize",
+      label: "Normalization",
+      type: "select",
+      defaultValue: "none",
+      options: [
+        { label: "None (Raw Counts)", value: "none" },
+        { label: "True (Rows / Recall)", value: "true" },
+        { label: "Pred (Columns / Precision)", value: "pred" },
+        { label: "All (Total Population)", value: "all" },
+      ],
+    },
+    labels: {
+      name: "labels",
+      label: "Class Labels (optional, comma-separated)",
+      type: "string",
+      defaultValue: "",
+    },
+  },
   pythonDependencies: ["scikit-learn", "matplotlib"],
 };
 

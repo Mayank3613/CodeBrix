@@ -7,7 +7,6 @@ import type {
   Connection,
   BlockInstance,
 } from "@codebrix/types";
-import { createIrisWorkflowMock } from "@codebrix/shared";
 import { useProjectStore } from "./projectStore";
 import { autoLayoutGraphLeftToRight } from "../canvas/layout";
 
@@ -20,6 +19,18 @@ function cloneGraph(graph: WorkflowGraph): WorkflowGraph {
     blocks: JSON.parse(JSON.stringify(graph.blocks)),
     connections: JSON.parse(JSON.stringify(graph.connections)),
     metadata: { ...graph.metadata },
+  };
+}
+
+/** Create a pristine, blank playground graph */
+export function createEmptyGraph(): WorkflowGraph {
+  return {
+    id: "wf-empty",
+    name: "Untitled Project",
+    version: "0.1.0",
+    description: "Blank playground canvas",
+    blocks: {},
+    connections: [],
   };
 }
 
@@ -48,7 +59,7 @@ export interface WorkflowState {
 }
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
-  graph: createIrisWorkflowMock(),
+  graph: createEmptyGraph(),
   past: [],
   future: [],
 

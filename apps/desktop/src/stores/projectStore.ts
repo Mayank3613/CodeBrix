@@ -37,7 +37,7 @@ const initialRecent = loadPersistedRecentProjects();
 
 export const useProjectStore = create<ProjectState>((set) => ({
   currentFilePath: null,
-  projectName: "Iris Classification Acceptance Pipeline",
+  projectName: "Untitled Project",
   isDirty: false,
   recentProjects: initialRecent,
   lastAutosavedAt: null,

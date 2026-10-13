@@ -92,7 +92,7 @@ export default function ImageRenderer({
           <div className="flex-1 flex items-center justify-center overflow-hidden p-2">
             {img.format === "svg" ? (
               <div
-                className="max-h-56 overflow-auto"
+                className="max-h-56 w-full flex items-center justify-center overflow-auto"
                 dangerouslySetInnerHTML={{ __html: img.data }}
               />
             ) : (

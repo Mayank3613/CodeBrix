@@ -292,6 +292,112 @@ describe("Block Code Generators", () => {
       expect(result.imports).toContain("from sklearn.metrics import confusion_matrix");
       expect(result.code).toContain("confusion_matrix(");
       expect(result.code).toContain('"title": "Confusion Matrix"');
+      expect(result.code).toContain("_norm_b6 = None");
+      expect(result.code).toContain("_labels_b6 = None");
+    });
+
+    it("should support normalization and custom labels parameters in generated code", () => {
+      const gen = new ConfusionMatrixGenerator();
+      const context: BlockCodeContext = {
+        block: {
+          id: "b_cm_custom",
+          definitionId: "eval.confusion_matrix",
+          position: { x: 0, y: 0 },
+          config: {
+            normalize: "true",
+            labels: "Perished, Survived",
+          },
+        },
+        inputs: { predictions_in: "y_pred", ground_truth_in: "y_true" },
+        outputs: { figure_out: "cm_out" },
+        options: DEFAULT_OPTIONS,
+      };
+
+      const result = gen.generate(context);
+      expect(result.code).toContain('_norm_b_cm_custom = "true"');
+      expect(result.code).toContain('_labels_b_cm_custom = ["Perished","Survived"]');
+      expect(result.code).toContain("normalize=_norm_b_cm_custom");
+      expect(result.code).toContain("labels=_labels_b_cm_custom");
+    });
+  });
+
+  describe("FallbackBlockGenerator", () => {
+    it("should generate valid code and SVG plot for eval.classification_report", () => {
+      const gen = new FallbackBlockGenerator();
+      const context: BlockCodeContext = {
+        block: {
+          id: "blk_report",
+          definitionId: "eval.classification_report",
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+        inputs: { predictions_in: "y_pred", ground_truth_in: "y_true" },
+        outputs: { score_out: "score" },
+        options: DEFAULT_OPTIONS,
+      };
+
+      const result = gen.generate(context);
+      expect(result.imports).toContain("from sklearn.metrics import classification_report, f1_score");
+      expect(result.code).toContain('f"[blk_report] Classification Report');
+      expect(result.code).toContain('"format": "svg"');
+      expect(result.code).toContain('"title": "Per-Class Performance (Precision / Recall / F1)"');
+      expect(result.code).toContain("Per-Class Performance Breakdown");
+      expect(result.code).not.toContain("{block.id}");
+      expect(result.code).not.toContain("{block.");
+    });
+
+    it("should generate visual SVG plots for classification models (logistic regression, decision tree, gradient boosting, knn, svc, gaussian_nb)", () => {
+      const gen = new FallbackBlockGenerator();
+      const models = [
+        { id: "blk_lr", def: "ml.logistic_regression", title: "Feature Coefficients" },
+        { id: "blk_dt", def: "ml.decision_tree_classifier", title: "Decision Tree Feature Importance" },
+        { id: "blk_gb", def: "ml.gradient_boosting_classifier", title: "Gradient Boosting Feature Importance" },
+        { id: "blk_knn", def: "ml.knn_classifier", title: "KNN Class Distribution" },
+        { id: "blk_svc", def: "ml.svc", title: "SVC Support Vector Distribution" },
+        { id: "blk_nb", def: "ml.gaussian_nb", title: "Naive Bayes Class Priors" },
+      ];
+
+      for (const m of models) {
+        const result = gen.generate({
+          block: {
+            id: m.id,
+            definitionId: m.def,
+            position: { x: 0, y: 0 },
+            config: {},
+          },
+          inputs: { train_data_in: "train_df" },
+          outputs: { model_out: "model" },
+          options: DEFAULT_OPTIONS,
+        });
+
+        expect(result.code).toContain('"format": "svg"');
+        expect(result.code).toContain(m.title);
+        expect(result.code).not.toContain("{block.");
+      }
+    });
+
+    it("should generate valid code for viz plots with interpolated label and definitionId", () => {
+      const gen = new FallbackBlockGenerator();
+      const context: BlockCodeContext = {
+        block: {
+          id: "blk_viz",
+          definitionId: "viz.scatter_plot",
+          label: "Scatter Visualizer",
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+        inputs: {},
+        outputs: { matrix_out: "matrix" },
+        options: DEFAULT_OPTIONS,
+      };
+
+      const result = gen.generate(context);
+      expect(result.code).toContain("Scatter Visualizer");
+      expect(result.code).not.toContain("{block.label}");
+      expect(result.code).not.toContain("{block.definitionId}");
+      expect(result.code).not.toContain("{block.");
     });
   });
 });
+
+

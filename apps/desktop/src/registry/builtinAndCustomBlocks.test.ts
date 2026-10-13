@@ -82,10 +82,10 @@ describe("Built-in Blocks & Custom Blocks System", () => {
       const store = useCustomBlockStore.getState();
       store.addCustomBlock(customDef, "outputs['df_out'] = inputs['df_in'] * 2");
 
-      expect(store.customBlocks).toHaveLength(1);
+      expect(useCustomBlockStore.getState().customBlocks).toHaveLength(1);
       expect(blockRegistry.has("custom.my_text_scaler")).toBe(true);
       expect(blockRegistry.get("custom.my_text_scaler")?.name).toBe("My Text Scaler");
-      expect(store.getPythonCode("custom.my_text_scaler")).toContain("outputs['df_out']");
+      expect(useCustomBlockStore.getState().getPythonCode("custom.my_text_scaler")).toContain("outputs['df_out']");
     });
 
     it("updates an existing custom block in store and registry", () => {
@@ -95,9 +95,9 @@ describe("Built-in Blocks & Custom Blocks System", () => {
       const updatedDef = { ...customDef, name: "Renamed Text Scaler" };
       store.updateCustomBlock("custom.my_text_scaler", updatedDef, "code v2");
 
-      expect(store.customBlocks[0]?.name).toBe("Renamed Text Scaler");
+      expect(useCustomBlockStore.getState().customBlocks[0]?.name).toBe("Renamed Text Scaler");
       expect(blockRegistry.get("custom.my_text_scaler")?.name).toBe("Renamed Text Scaler");
-      expect(store.getPythonCode("custom.my_text_scaler")).toBe("code v2");
+      expect(useCustomBlockStore.getState().getPythonCode("custom.my_text_scaler")).toBe("code v2");
     });
 
     it("deletes a custom block and removes it from BlockRegistry", () => {
@@ -106,7 +106,7 @@ describe("Built-in Blocks & Custom Blocks System", () => {
       expect(blockRegistry.has("custom.my_text_scaler")).toBe(true);
 
       store.deleteCustomBlock("custom.my_text_scaler");
-      expect(store.customBlocks).toHaveLength(0);
+      expect(useCustomBlockStore.getState().customBlocks).toHaveLength(0);
       expect(blockRegistry.has("custom.my_text_scaler")).toBe(false);
     });
 

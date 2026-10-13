@@ -190,7 +190,7 @@ describe("Phase 5 Acceptance Gate: Merged Branch Robustness & End-to-End Executi
     const uiStore = useUiStore.getState();
 
     // Default panel height
-    expect(uiStore.outputPanelHeight).toBe(320);
+    expect(uiStore.outputPanelHeight).toBe(260);
 
     // Test resize adjustment
     uiStore.setOutputPanelHeight(420);

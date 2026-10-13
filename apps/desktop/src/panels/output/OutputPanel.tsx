@@ -55,7 +55,7 @@ export default function OutputPanel() {
 
   if (!isOutputOpen) return null;
 
-  const liveOutputs = outputs.length > 0 ? outputs : result?.outputs || [];
+  const liveOutputs = outputs;
 
   // Map backward compatible "visuals" tab to "plots"
   const normalizedActiveTab: OutputTab = activeTab === "visuals" ? "plots" : activeTab;
@@ -82,17 +82,19 @@ export default function OutputPanel() {
             (o.format === "png" || o.format === "svg" || o.format === "base64")
         ).length;
       case "plots":
-      case "visuals":
-        return liveOutputs.filter(
+      case "visuals": {
+        const hasMatrix = liveOutputs.some(
           (o) =>
-            (o.type === "image" &&
-              (o.format === "plotly" ||
-                o.format === "confusion_matrix" ||
-                o.format === "feature_importance")) ||
             (o.type === "metrics" &&
               (Array.isArray(o.metrics["matrix"]) ||
-                Array.isArray(o.metrics["confusion_matrix"])))
+                Array.isArray(o.metrics["confusion_matrix"]))) ||
+            (o.type === "image" && o.format === "confusion_matrix")
+        );
+        const otherPlots = liveOutputs.filter(
+          (o) => o.type === "image" && o.format !== "confusion_matrix"
         ).length;
+        return (hasMatrix ? 1 : 0) + otherPlots;
+      }
       default:
         return 0;
      }
@@ -221,7 +223,7 @@ export default function OutputPanel() {
       </div>
 
       {/* Content Area Host */}
-      <div className="flex-1 p-3 overflow-auto font-mono text-xs select-text bg-transparent">
+      <div className="flex-1 p-3 overflow-auto font-mono text-xs select-text bg-transparent min-h-0 min-w-0 flex flex-col">
         {RendererComponent ? (
           <RendererComponent
             messages={liveOutputs}

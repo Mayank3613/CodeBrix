@@ -8,12 +8,15 @@ export type OutputTab =
   | "plots"
   | "visuals";
 
+export type PaletteSection = "playground" | "library" | "custom" | "templates";
+
 export interface UiState {
   selectedBlockId: string | null;
   focusedBlockId: string | null;
   focusTarget: { blockId: string; timestamp: number } | null;
   activeOutputTab: OutputTab;
   isPaletteOpen: boolean;
+  activePaletteSection: PaletteSection;
   isPropertiesOpen: boolean;
   isOutputOpen: boolean;
   paletteWidth: number;
@@ -25,6 +28,8 @@ export interface UiState {
   focusBlock: (blockId: string) => void;
   setActiveOutputTab: (tab: OutputTab) => void;
   togglePalette: () => void;
+  setPaletteOpen: (open: boolean) => void;
+  setActivePaletteSection: (section: PaletteSection) => void;
   toggleProperties: () => void;
   toggleOutput: () => void;
   setPaletteWidth: (width: number) => void;
@@ -35,11 +40,12 @@ export interface UiState {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  selectedBlockId: "blk-csv",
+  selectedBlockId: null,
   focusedBlockId: null,
   focusTarget: null,
   activeOutputTab: "metrics",
   isPaletteOpen: true,
+  activePaletteSection: "library",
   isPropertiesOpen: true,
   isOutputOpen: true,
   paletteWidth: 320,
@@ -60,6 +66,11 @@ export const useUiStore = create<UiState>((set) => ({
   setActiveOutputTab: (tab: OutputTab) => set({ activeOutputTab: tab }),
 
   togglePalette: () => set((state) => ({ isPaletteOpen: !state.isPaletteOpen })),
+
+  setPaletteOpen: (open: boolean) => set({ isPaletteOpen: open }),
+
+  setActivePaletteSection: (section: PaletteSection) =>
+    set({ isPaletteOpen: true, activePaletteSection: section }),
 
   toggleProperties: () =>
     set((state) => ({ isPropertiesOpen: !state.isPropertiesOpen })),
@@ -93,6 +104,7 @@ export const useUiStore = create<UiState>((set) => ({
       focusTarget: null,
       activeOutputTab: "console",
       isPaletteOpen: true,
+      activePaletteSection: "library",
       isPropertiesOpen: true,
       isOutputOpen: true,
       paletteWidth: 320,

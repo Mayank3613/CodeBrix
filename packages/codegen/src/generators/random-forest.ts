@@ -35,7 +35,7 @@ export class RandomForestGenerator implements BlockCodeGenerator {
     lines.push(`_is_continuous_${cleanId} = False`);
     lines.push(`try:`);
     lines.push(`    _target_type_${cleanId} = type_of_target(y_${cleanId})`);
-    lines.push(`    _is_continuous_${cleanId} = _target_type_${cleanId} in ['continuous', 'continuous-multioutput']`);
+    lines.push(`    _is_continuous_${cleanId} = _target_type_${cleanId} in ['continuous', 'continuous-multioutput'] and len(set(y_${cleanId})) > 5`);
     lines.push(`except Exception:`);
     lines.push(`    _is_continuous_${cleanId} = False`);
     lines.push(`if _is_continuous_${cleanId}:`);
@@ -46,6 +46,34 @@ export class RandomForestGenerator implements BlockCodeGenerator {
     lines.push(`    ${modelOut}.fit(X_${cleanId}, y_${cleanId}.astype(str))`);
 
     if (options.includeProtocolHooks) {
+      lines.push(`try:`);
+      lines.push(`    if hasattr(${modelOut}, 'feature_importances_'):`);
+      lines.push(`        _feats_${cleanId} = list(X_${cleanId}.columns)`);
+      lines.push(`        _imps_${cleanId} = [float(v) for v in ${modelOut}.feature_importances_]`);
+      lines.push(`        _sorted_idx = sorted(range(len(_imps_${cleanId})), key=lambda i: _imps_${cleanId}[i], reverse=True)[:6]`);
+      lines.push(`        _top_f = [_feats_${cleanId}[i] for i in _sorted_idx]`);
+      lines.push(`        _top_v = [_imps_${cleanId}[i] for i in _sorted_idx]`);
+      lines.push(`        _max_v = max(_top_v) if _top_v and max(_top_v) > 0 else 1.0`);
+      lines.push(`        _svg_bars = ""`);
+      lines.push(`        for _idx, (_f_name, _val) in enumerate(zip(_top_f, _top_v)):`);
+      lines.push(`            _w = int((_val / _max_v) * 200)`);
+      lines.push(`            _y = 30 + _idx * 24`);
+      lines.push(`            _f_clean = str(_f_name)[:18]`);
+      lines.push(`            _svg_bars += f'<text x="12" y="{_y+13}" fill="#94a3b8" font-family="sans-serif" font-size="10">{_f_clean}</text>'`);
+      lines.push(`            _svg_bars += f'<rect x="130" y="{_y}" width="{max(_w, 4)}" height="16" rx="3" fill="#06b6d4" opacity="0.85"/>'`);
+      lines.push(`            _svg_bars += f'<text x="{138+_w}" y="{_y+12}" fill="#e2e8f0" font-family="monospace" font-size="9">{_val:.3f}</text>'`);
+      lines.push(`        _svg_h = 42 + len(_top_f) * 24`);
+      lines.push(`        _svg_rf = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 {_svg_h}" width="100%" height="{_svg_h}"><rect width="100%" height="100%" fill="#090d18" rx="8"/><text x="12" y="18" fill="#e2e8f0" font-family="sans-serif" font-size="11" font-weight="bold">Feature Importance: {len(_top_f)} Key Predictors</text>{_svg_bars}</svg>'`);
+      lines.push(`        emit_json({`);
+      lines.push(`            "type": "image",`);
+      lines.push(`            "blockId": ${JSON.stringify(block.id)},`);
+      lines.push(`            "title": f"Feature Importance ({len(_top_f)} Features)",`);
+      lines.push(`            "format": "svg",`);
+      lines.push(`            "data": _svg_rf,`);
+      lines.push(`            "timestamp": iso_now()`);
+      lines.push(`        })`);
+      lines.push(`except Exception:`);
+      lines.push(`    pass`);
       lines.push(`emit_json({`);
       lines.push(`    "type": "console",`);
       lines.push(`    "stream": "stdout",`);

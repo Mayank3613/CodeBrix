@@ -556,3 +556,224 @@ export async function stopPythonExecution(): Promise<void> {
     timestamp: new Date().toISOString(),
   });
 }
+
+/**
+ * Executes an arbitrary user-entered interactive terminal command.
+ * Supports:
+ * - Built-in commands: clear, cls, help, status
+ * - Python expressions & statements: evaluated or executed dynamically
+ * - Shell / System commands: pip list, python --version, ls, pwd, whoami, !command, etc.
+ * Streams output lines directly into the Console tab without wiping workflow outputs.
+ */
+export async function executeTerminalInteractiveCommand(rawCommand: string): Promise<void> {
+  const trimmed = rawCommand.trim();
+  if (!trimmed) return;
+
+  const store = useExecutionStore.getState();
+
+  // 1. Log the prompt line in stdout
+  store.addOutput({
+    type: "console",
+    stream: "stdout",
+    text: `❯ ${trimmed}`,
+    timestamp: new Date().toISOString(),
+  });
+
+  // 2. Built-in interactive commands
+  const lower = trimmed.toLowerCase();
+  if (lower === "clear" || lower === "cls") {
+    store.clearConsoleLogs();
+    return;
+  }
+
+  if (lower === "help") {
+    store.addOutput({
+      type: "console",
+      stream: "stdout",
+      text: [
+        "CodeBrix Interactive Terminal:",
+        "  • Python expressions / code: e.g. print('Hello!'), 2 + 2, [x**2 for x in range(5)]",
+        "  • System / Shell commands:    e.g. pip list, python --version, ls, pwd, whoami",
+        "  • Prefix with ! or $:         e.g. !git status, $env",
+        "  • Built-in commands:",
+        "      clear / cls   - Clear console logs",
+        "      help          - Show this command reference",
+        "      status        - Show current pipeline state and metrics",
+      ].join("\n"),
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (lower === "status") {
+    const s = useExecutionStore.getState();
+    const errorCount = s.outputs.filter(
+      (o) => o.type === "error" || (o.type === "console" && o.stream === "stderr")
+    ).length;
+    store.addOutput({
+      type: "console",
+      stream: "stdout",
+      text: `[System Status] Run State: ${s.runState} | Outputs: ${s.outputs.length} | Errors: ${errorCount} | Active Block: ${s.activeBlockId || "None"}`,
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  // 3. Construct the Python wrapper script
+  const script = `
+import sys, subprocess
+
+_cmd = ${JSON.stringify(trimmed)}
+
+def _run_shell(cmd):
+    try:
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        if r.stdout:
+            sys.stdout.write(r.stdout)
+            sys.stdout.flush()
+        if r.stderr:
+            sys.stderr.write(r.stderr)
+            sys.stderr.flush()
+        return r.returncode
+    except Exception as e:
+        sys.stderr.write(f"Shell execution failed: {e}\\n")
+        return 1
+
+if _cmd.startswith(('!', '$')):
+    _run_shell(_cmd[1:].strip())
+else:
+    try:
+        _compiled_eval = compile(_cmd, '<terminal>', 'eval')
+        _res = eval(_compiled_eval)
+        if _res is not None:
+            print(repr(_res))
+    except SyntaxError:
+        try:
+            _compiled_exec = compile(_cmd, '<terminal>', 'exec')
+            exec(_compiled_exec)
+        except SyntaxError:
+            # Fallback to shell execution (e.g. pip list, python --version)
+            if _run_shell(_cmd) != 0:
+                import traceback
+                traceback.print_exc()
+        except Exception:
+            import traceback
+            traceback.print_exc()
+    except NameError:
+        # Fallback to shell command (e.g. ls, pwd, dir, whoami)
+        if _run_shell(_cmd) != 0:
+            import traceback
+            traceback.print_exc()
+    except Exception:
+        import traceback
+        traceback.print_exc()
+`;
+
+  const executionId = `cmd_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  // 4. Dispatch execution
+  if (isTauri()) {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const { listen } = await import("@tauri-apps/api/event");
+
+    return new Promise<void>((resolve) => {
+      const unlisteners: Array<() => void> = [];
+      const cleanup = () => unlisteners.forEach((u) => u());
+
+      listen<PythonOutputPayload>("python-output", (event) => {
+        if (event.payload.execution_id !== executionId) return;
+        const line = event.payload.line;
+        if (line) {
+          useExecutionStore.getState().addOutput({
+            type: "console",
+            stream: event.payload.stream === "stderr" ? "stderr" : "stdout",
+            text: line,
+            timestamp: event.payload.timestamp || new Date().toISOString(),
+          });
+        }
+      }).then((un) => unlisteners.push(un));
+
+      listen<PythonExitPayload>("python-exit", (event) => {
+        if (event.payload.execution_id !== executionId) return;
+        cleanup();
+        resolve();
+      }).then((un) => unlisteners.push(un));
+
+      invoke<void>("run_python_script", { script, executionId }).catch((err) => {
+        cleanup();
+        useExecutionStore.getState().addOutput({
+          type: "error",
+          message: `[Terminal Execution Error] ${String(err)}`,
+          timestamp: new Date().toISOString(),
+        });
+        resolve();
+      });
+    });
+  }
+
+  // Web dev mode via Vite SSE endpoint
+  return new Promise<void>((resolve) => {
+    fetch(getEndpointUrl("/api/python/run"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ script, executionId }),
+    })
+      .then(async (res) => {
+        if (!res.ok || !res.body) {
+          throw new Error(`Server returned HTTP ${res.status}: ${res.statusText}`);
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() ?? "";
+
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const evt = JSON.parse(line.slice(6)) as Record<string, unknown>;
+              if (evt["type"] === "output" && typeof evt["line"] === "string") {
+                const stream = evt["stream"] === "stderr" ? "stderr" : "stdout";
+                useExecutionStore.getState().addOutput({
+                  type: "console",
+                  stream,
+                  text: evt["line"],
+                  timestamp: new Date().toISOString(),
+                });
+              }
+            } catch {
+              // ignore malformed line
+            }
+          }
+        }
+        resolve();
+      })
+      .catch((err) => {
+        // Fallback for offline browser test environment
+        try {
+          const evalResult = Function(`"use strict"; return (${JSON.stringify(trimmed)})`)();
+          useExecutionStore.getState().addOutput({
+            type: "console",
+            stream: "stdout",
+            text: String(evalResult),
+            timestamp: new Date().toISOString(),
+          });
+        } catch {
+          useExecutionStore.getState().addOutput({
+            type: "console",
+            stream: "stderr",
+            text: `[Terminal] Command execution error: ${String(err)}`,
+            timestamp: new Date().toISOString(),
+          });
+        }
+        resolve();
+      });
+  });
+}

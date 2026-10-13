@@ -23,7 +23,8 @@ export class EncoderGenerator implements BlockCodeGenerator {
 
     if (method === "onehot") {
       if (columns === "auto") {
-        lines.push(`_cat_cols_${cleanId} = ${inputDataset}.select_dtypes(include=['object', 'category', 'string']).columns`);
+        lines.push(`_exclude_encode_${cleanId} = {'churn', 'survived', 'target', 'species', 'label', 'class', 'default', 'y'}`);
+        lines.push(`_cat_cols_${cleanId} = [c for c in ${inputDataset}.select_dtypes(include=['object', 'category', 'string']).columns if str(c).lower() not in _exclude_encode_${cleanId}]`);
         lines.push(`${outputVar} = pd.get_dummies(${inputDataset}, columns=_cat_cols_${cleanId}, drop_first=${dropFirst ? "True" : "False"}, dtype=float)`);
       } else {
         const colList = columns

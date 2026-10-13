@@ -107,7 +107,10 @@ export default function App() {
 
       {/* ─── Center-Bottom Bento Cell: Terminal / Output Notebook ─── */}
       {isOutputOpen && (
-        <section className="cb-output cb-bento-frame overflow-hidden relative z-20">
+        <section
+          className="cb-output cb-bento-frame overflow-hidden relative z-20"
+          style={{ minWidth: 0, minHeight: 0 }}
+        >
           <ResizeHandle
             direction="vertical"
             side="top"

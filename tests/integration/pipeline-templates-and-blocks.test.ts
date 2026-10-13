@@ -91,10 +91,11 @@ describe("Pipeline Templates & Built-in Blocks Verification", () => {
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
 
-      const plan = getExecutionPlan(tpl!.graph, registry);
-      expect(plan.phases.length).toBeGreaterThan(0);
+      const plan = getExecutionPlan(tpl!.graph);
+      expect(plan.steps.length).toBeGreaterThan(0);
 
-      const code = codeGen.generate(tpl!.graph);
+      const script = codeGen.generate(tpl!.graph);
+      const code = script.code;
       expect(code).toBeDefined();
       expect(code.length).toBeGreaterThan(100);
       expect(code).toContain("RandomForestClassifier");
@@ -111,10 +112,11 @@ describe("Pipeline Templates & Built-in Blocks Verification", () => {
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
 
-      const plan = getExecutionPlan(tpl!.graph, registry);
-      expect(plan.phases.length).toBeGreaterThan(0);
+      const plan = getExecutionPlan(tpl!.graph);
+      expect(plan.steps.length).toBeGreaterThan(0);
 
-      const code = codeGen.generate(tpl!.graph);
+      const script = codeGen.generate(tpl!.graph);
+      const code = script.code;
       expect(code).toBeDefined();
       expect(code).toContain("GradientBoostingRegressor");
       expect(code).toContain("mean_squared_error");
@@ -130,13 +132,16 @@ describe("Pipeline Templates & Built-in Blocks Verification", () => {
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
 
-      const plan = getExecutionPlan(tpl!.graph, registry);
-      expect(plan.phases.length).toBeGreaterThan(0);
+      const plan = getExecutionPlan(tpl!.graph);
+      expect(plan.steps.length).toBeGreaterThan(0);
 
-      const code = codeGen.generate(tpl!.graph);
+      const script = codeGen.generate(tpl!.graph);
+      const code = script.code;
       expect(code).toBeDefined();
       expect(code).toContain("LogisticRegression");
       expect(code).toContain("classification_report");
+      expect(code).not.toContain("{block.id}");
+      expect(code).not.toContain("{block.");
     });
 
     it("Template 4: Kaggle Fraud Anomaly Detection must be fully valid and generate code", () => {
@@ -149,13 +154,17 @@ describe("Pipeline Templates & Built-in Blocks Verification", () => {
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
 
-      const plan = getExecutionPlan(tpl!.graph, registry);
-      expect(plan.phases.length).toBeGreaterThan(0);
+      const plan = getExecutionPlan(tpl!.graph);
+      expect(plan.steps.length).toBeGreaterThan(0);
 
-      const code = codeGen.generate(tpl!.graph);
+      const script = codeGen.generate(tpl!.graph);
+      const code = script.code;
       expect(code).toBeDefined();
       expect(code).toContain("RandomForestClassifier");
       expect(code).toContain("RobustScaler");
+      expect(code).toContain('f"[blk-report] Classification Report');
+      expect(code).not.toContain("{block.id}");
+      expect(code).not.toContain("{block.");
     });
 
     it("Template 5: Kaggle Mall Customer Segmentation must be fully valid and generate code", () => {
@@ -168,13 +177,35 @@ describe("Pipeline Templates & Built-in Blocks Verification", () => {
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
 
-      const plan = getExecutionPlan(tpl!.graph, registry);
-      expect(plan.phases.length).toBeGreaterThan(0);
+      const plan = getExecutionPlan(tpl!.graph);
+      expect(plan.steps.length).toBeGreaterThan(0);
 
-      const code = codeGen.generate(tpl!.graph);
+      const script = codeGen.generate(tpl!.graph);
+      const code = script.code;
       expect(code).toBeDefined();
       expect(code).toContain("PCA");
       expect(code).toContain("KMeans");
+    });
+
+    it("Template: Iris Flower Classification must be fully valid and generate code", () => {
+      const tpl = PIPELINE_TEMPLATES.find((t) => t.id === "template-iris-classification");
+      expect(tpl).toBeDefined();
+      expect(tpl!.nodeCount).toBe(6);
+      expect(tpl!.edgeCount).toBe(8);
+
+      const result = validator.validate(tpl!.graph);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+
+      const plan = getExecutionPlan(tpl!.graph);
+      expect(plan.steps.length).toBeGreaterThan(0);
+
+      const script = codeGen.generate(tpl!.graph);
+      const code = script.code;
+      expect(code).toBeDefined();
+      expect(code).toContain("RandomForestClassifier");
+      expect(code).toContain("accuracy_score");
+      expect(code).toContain("confusion_matrix");
     });
   });
 });
