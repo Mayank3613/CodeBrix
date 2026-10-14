@@ -13,10 +13,9 @@ import {
 import "@xyflow/react/dist/style.css";
 import { BlockNode } from "./BlockNode";
 import { toReactFlowGraph, type BlockNodeData } from "./adapter";
-import { useWorkflowStore, useUiStore, useProjectStore } from "../stores";
+import { useWorkflowStore, useUiStore } from "../stores";
 import { blockRegistry } from "../registry";
 import { CheckIcon, CloseIcon, SparklesIcon } from "../components/common/Icons";
-import { PIPELINE_TEMPLATES } from "../templates/pipelineTemplates";
 
 const nodeTypes = {
   blockNode: BlockNode,
@@ -525,30 +524,17 @@ function CanvasContent() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
               <button
                 onClick={() => {
-                  const irisTpl = PIPELINE_TEMPLATES.find((t) => t.id === "template-iris-classification");
-                  if (irisTpl) {
-                    const normalizedConnections = (irisTpl.graph.connections || []).map((c: any) => ({
-                      id: c.id,
-                      sourceBlockId: c.sourceBlockId ?? c.fromBlockId,
-                      sourcePortId: c.sourcePortId ?? c.fromPortId,
-                      targetBlockId: c.targetBlockId ?? c.toBlockId,
-                      targetPortId: c.targetPortId ?? c.toPortId,
-                    }));
-                    useWorkflowStore.getState().setGraph({
-                      ...irisTpl.graph,
-                      connections: normalizedConnections,
-                    });
-                    useProjectStore.getState().setProjectName(irisTpl.title);
-                    useProjectStore.getState().markDirty(false);
-                    setTimeout(() => {
-                      window.dispatchEvent(new CustomEvent("codebrix:fit-view"));
-                    }, 80);
-                  }
+                  // Open the palette and switch to the Templates section
+                  window.dispatchEvent(
+                    new CustomEvent("codebrix:switch-palette-section", {
+                      detail: { section: "templates" },
+                    })
+                  );
                 }}
                 className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs transition-all shadow-[0_4px_16px_rgba(16,185,129,0.3)] hover:shadow-[0_6px_20px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2 cursor-pointer border border-emerald-400/30 active:scale-95"
               >
                 <SparklesIcon size={13} />
-                <span>Load Iris Example</span>
+                <span>Browse Examples</span>
               </button>
             </div>
           </div>

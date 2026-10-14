@@ -104,4 +104,80 @@ describe("Output Panel Container & Renderer Registry (D1-4.4)", () => {
     useExecutionStore.getState().clearOutputs();
     expect(useExecutionStore.getState().outputs.length).toBe(0);
   });
+
+  describe("Plot vs Image Differentiation", () => {
+    it("strictly differentiates plots from images without overlap", async () => {
+      const {
+        isPlotOutput,
+        isImageOutput,
+        getPlotsTabCount,
+        getImagesTabCount,
+      } = await import("./outputClassification");
+
+      const plotMsg1: ImageOutputMessage = {
+        type: "image",
+        title: "Confusion Matrix Heatmap",
+        format: "confusion_matrix",
+        data: "[[10, 0], [0, 10]]",
+        timestamp: new Date().toISOString(),
+      };
+
+      const plotMsg2: ImageOutputMessage = {
+        type: "image",
+        title: "Class Accuracy Distribution Plot",
+        format: "svg",
+        data: "<svg><text>Accuracy</text></svg>",
+        metadata: { kind: "plot" },
+        timestamp: new Date().toISOString(),
+      };
+
+      const plotMsg3: ImageOutputMessage = {
+        type: "image",
+        title: "Feature Importance (4 Features)",
+        format: "svg",
+        data: "<svg></svg>",
+        timestamp: new Date().toISOString(),
+      };
+
+      const imageMsg1: ImageOutputMessage = {
+        type: "image",
+        title: "Input Dataset Sample (Digit 5)",
+        format: "png",
+        data: "iVBORw0KGgoAAAANSUhEUg==",
+        timestamp: new Date().toISOString(),
+      };
+
+      const imageMsg2: ImageOutputMessage = {
+        type: "image",
+        title: "Camera Feed Preview",
+        format: "base64",
+        data: "mock_image_bytes",
+        metadata: { kind: "image" },
+        timestamp: new Date().toISOString(),
+      };
+
+      // Verify plot outputs are recognized as plots and NOT as images
+      expect(isPlotOutput(plotMsg1)).toBe(true);
+      expect(isImageOutput(plotMsg1)).toBe(false);
+
+      expect(isPlotOutput(plotMsg2)).toBe(true);
+      expect(isImageOutput(plotMsg2)).toBe(false);
+
+      expect(isPlotOutput(plotMsg3)).toBe(true);
+      expect(isImageOutput(plotMsg3)).toBe(false);
+
+      // Verify image outputs are recognized as images and NOT as plots
+      expect(isImageOutput(imageMsg1)).toBe(true);
+      expect(isPlotOutput(imageMsg1)).toBe(false);
+
+      expect(isImageOutput(imageMsg2)).toBe(true);
+      expect(isPlotOutput(imageMsg2)).toBe(false);
+
+      // Verify tab counts accurately partition the messages
+      const allMessages = [plotMsg1, plotMsg2, plotMsg3, imageMsg1, imageMsg2];
+      expect(getPlotsTabCount(allMessages)).toBe(3); // 1 confusion matrix + 2 plot SVGs
+      expect(getImagesTabCount(allMessages)).toBe(2); // 2 standalone images
+    });
+  });
 });
+

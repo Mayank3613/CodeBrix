@@ -62,6 +62,7 @@ export class ConfusionMatrixGenerator implements BlockCodeGenerator {
       lines.push(`    "title": "Confusion Matrix Heatmap",`);
       lines.push(`    "format": "confusion_matrix",`);
       lines.push(`    "data": json.dumps(${figureOut}),`);
+      lines.push(`    "metadata": {"kind": "plot"},`);
       lines.push(`    "timestamp": iso_now()`);
       lines.push(`})`);
       lines.push(`emit_json({`);

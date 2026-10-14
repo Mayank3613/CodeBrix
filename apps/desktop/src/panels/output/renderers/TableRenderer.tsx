@@ -41,8 +41,9 @@ export default function TableRenderer({
   const colCount = latestTable.totalColumns ?? latestTable.columns.length;
 
   return (
-    <div className="rounded-lg border border-slate-800 overflow-hidden bg-slate-950/80 font-mono text-xs">
-      <div className="px-3 py-2 bg-slate-900/80 border-b border-slate-800 text-xs font-sans text-slate-300 flex justify-between items-center">
+    <div className="flex flex-col flex-1 min-h-0 rounded-lg border border-slate-800 overflow-hidden bg-slate-950/80 font-mono text-xs">
+      {/* Header */}
+      <div className="px-3 py-2 bg-slate-900/80 border-b border-slate-800 text-xs font-sans text-slate-300 flex justify-between items-center shrink-0">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-white">{latestTable.title || "Dataset Preview"}</span>
           {latestTable.blockId && (
@@ -56,10 +57,11 @@ export default function TableRenderer({
         </span>
       </div>
 
-      <div className="overflow-x-auto max-h-48">
+      {/* Scrollable table — fills all remaining panel height */}
+      <div className="flex-1 overflow-auto min-h-0">
         <table className="w-full text-left border-collapse font-mono text-xs">
           <thead>
-            <tr className="bg-slate-900/90 border-b border-slate-800 text-[11px] text-slate-400 sticky top-0">
+            <tr className="bg-slate-900/90 border-b border-slate-800 text-[11px] text-slate-400 sticky top-0 z-10">
               <th className="p-2 border-r border-slate-800/60 w-10 text-center text-slate-500 select-none">
                 #
               </th>

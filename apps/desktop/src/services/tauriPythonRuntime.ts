@@ -454,6 +454,7 @@ export async function runPythonExecution(
               [0, 9, 1],
               [0, 0, 10],
             ]),
+            metadata: { kind: "plot" },
             timestamp: new Date().toISOString(),
           });
 
@@ -488,6 +489,7 @@ export async function runPythonExecution(
             title: "Class Accuracy Distribution Plot",
             format: "svg",
             data: svgChart,
+            metadata: { kind: "plot" },
             timestamp: new Date().toISOString(),
           });
 

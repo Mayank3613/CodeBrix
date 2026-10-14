@@ -65,6 +65,7 @@ export class AccuracyGenerator implements BlockCodeGenerator {
       lines.push(`        "title": f"{_metric_title_${cleanId}} Breakdown",`);
       lines.push(`        "format": "svg",`);
       lines.push(`        "data": _svg_acc,`);
+      lines.push(`        "metadata": {"kind": "plot"},`);
       lines.push(`        "timestamp": iso_now()`);
       lines.push(`    })`);
       lines.push(`except Exception:`);

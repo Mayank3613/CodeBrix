@@ -70,6 +70,7 @@ export class RandomForestGenerator implements BlockCodeGenerator {
       lines.push(`            "title": f"Feature Importance ({len(_top_f)} Features)",`);
       lines.push(`            "format": "svg",`);
       lines.push(`            "data": _svg_rf,`);
+      lines.push(`            "metadata": {"kind": "plot"},`);
       lines.push(`            "timestamp": iso_now()`);
       lines.push(`        })`);
       lines.push(`except Exception:`);

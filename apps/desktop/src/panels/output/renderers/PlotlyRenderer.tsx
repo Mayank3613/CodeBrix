@@ -1,15 +1,18 @@
 import type { ImageOutputMessage, MetricsOutputMessage, OutputMessage } from "@codebrix/types";
 import type { RendererProps } from "../registry";
+import { useUiStore } from "../../../stores";
+import { ImageIcon } from "../../../components/common/Icons";
+import { isPlotOutput, isImageOutput } from "../outputClassification";
 
 export default function PlotlyRenderer({
   messages,
   runState,
   executionResult,
 }: RendererProps<OutputMessage>) {
-  // Only actual renderable raster/vector images (excluding raw JSON confusion_matrix which is rendered as interactive heatmap)
+  // Only pick up interactive/analytical chart formats (excluding raw JSON confusion_matrix which is rendered as interactive heatmap)
   const plotImages = messages.filter(
     (m): m is ImageOutputMessage =>
-      m.type === "image" && m.format !== "confusion_matrix"
+      isPlotOutput(m) && m.type === "image" && m.format !== "confusion_matrix"
   );
 
   // Check for metrics message containing matrix
@@ -57,6 +60,34 @@ export default function PlotlyRenderer({
       return (
         <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-900/60 text-center font-sans text-xs text-rose-300">
           Execution failed before plots could be generated. Check Console tab for details.
+        </div>
+      );
+    }
+
+    const hasImages = messages.some(isImageOutput);
+    if (hasImages) {
+      return (
+        <div className="text-slate-400 text-center py-8 font-sans text-xs flex flex-col items-center gap-3">
+          <p className="text-slate-500">
+            No analytical plots or charts were generated.
+          </p>
+          <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-300 flex items-center gap-4 shadow-lg">
+            <ImageIcon size={24} className="text-emerald-400" />
+            <div className="text-left">
+              <p className="text-xs font-semibold text-slate-200">
+                Image Assets Available
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Image files and media outputs are rendered under the <strong>Images</strong> tab.
+              </p>
+            </div>
+            <button
+              onClick={() => useUiStore.getState().setActiveOutputTab("image")}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs cursor-pointer transition-colors shadow-sm ml-2"
+            >
+              Open Images Tab →
+            </button>
+          </div>
         </div>
       );
     }
@@ -277,26 +308,36 @@ export default function PlotlyRenderer({
 
             {/* Binary Diagnostics Strip for 2x2 Classifications */}
             {isBinary && (
-              <div className="mt-4 pt-3 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-left font-sans">
-                <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+              <div className="mt-4 pt-3 border-t border-white/10 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-left font-sans">
+                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
                   <div className="text-[10px] text-slate-400 uppercase font-semibold">True Positives (TP)</div>
                   <div className="text-sm font-bold text-emerald-300 font-mono mt-0.5">{tp}</div>
-                  <div className="text-[9.5px] text-slate-500">Class 1 correctly identified</div>
+                  <div className="text-[9.5px] text-slate-500">Class 1 identified</div>
                 </div>
-                <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
                   <div className="text-[10px] text-slate-400 uppercase font-semibold">True Negatives (TN)</div>
                   <div className="text-sm font-bold text-emerald-300 font-mono mt-0.5">{tn}</div>
-                  <div className="text-[9.5px] text-slate-500">Class 0 correctly rejected</div>
+                  <div className="text-[9.5px] text-slate-500">Class 0 rejected</div>
                 </div>
-                <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
                   <div className="text-[10px] text-slate-400 uppercase font-semibold">Precision / PPV</div>
                   <div className="text-sm font-bold text-cyan-300 font-mono mt-0.5">{precision.toFixed(1)}%</div>
                   <div className="text-[9.5px] text-slate-500">TP / (TP + FP)</div>
                 </div>
-                <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
                   <div className="text-[10px] text-slate-400 uppercase font-semibold">Recall / Sensitivity</div>
                   <div className="text-sm font-bold text-cyan-300 font-mono mt-0.5">{recall.toFixed(1)}%</div>
                   <div className="text-[9.5px] text-slate-500">TP / (TP + FN)</div>
+                </div>
+                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Specificity (TNR)</div>
+                  <div className="text-sm font-bold text-teal-300 font-mono mt-0.5">{specificity.toFixed(1)}%</div>
+                  <div className="text-[9.5px] text-slate-500">TN / (TN + FP)</div>
+                </div>
+                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                  <div className="text-[10px] text-slate-400 uppercase font-semibold">F1-Score</div>
+                  <div className="text-sm font-bold text-indigo-300 font-mono mt-0.5">{f1.toFixed(1)}%</div>
+                  <div className="text-[9.5px] text-slate-500">Harmonic Mean</div>
                 </div>
               </div>
             )}

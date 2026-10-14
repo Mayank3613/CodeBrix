@@ -1,29 +1,16 @@
-import type { ImageOutputMessage, OutputMessage } from "@codebrix/types";
+import type { OutputMessage } from "@codebrix/types";
 import type { RendererProps } from "../registry";
 import { useUiStore } from "../../../stores";
 import { BarChartIcon } from "../../../components/common/Icons";
+import { isImageOutput, isPlotOutput } from "../outputClassification";
 
 export default function ImageRenderer({
   messages,
   runState,
   executionResult,
 }: RendererProps<OutputMessage>) {
-  const imageOutputs = messages.filter(
-    (m): m is ImageOutputMessage =>
-      m.type === "image" &&
-      (m.format === "png" || m.format === "svg" || m.format === "base64")
-  );
-
-  const hasPlotOrMatrix = messages.some(
-    (m) =>
-      (m.type === "image" &&
-        (m.format === "plotly" ||
-          m.format === "confusion_matrix" ||
-          m.format === "feature_importance")) ||
-      (m.type === "metrics" &&
-        (Array.isArray(m.metrics["matrix"]) ||
-          Array.isArray(m.metrics["confusion_matrix"])))
-  );
+  const imageOutputs = messages.filter(isImageOutput);
+  const hasPlotOrMatrix = messages.some(isPlotOutput);
 
   if (imageOutputs.length === 0) {
     if (runState === "running") {
@@ -49,16 +36,16 @@ export default function ImageRenderer({
       return (
         <div className="text-slate-400 text-center py-8 font-sans text-xs flex flex-col items-center gap-3">
           <p className="text-slate-500">
-            No static raster image files (.png/.svg) were generated.
+            No standalone image files (.png/.svg) were generated.
           </p>
           <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-300 flex items-center gap-4 shadow-lg">
             <BarChartIcon size={24} className="text-indigo-400" />
             <div className="text-left">
               <p className="text-xs font-semibold text-slate-200">
-                Interactive Plot Available
+                Analytical Plots Available
               </p>
               <p className="text-[11px] text-slate-400">
-                The Confusion Matrix heatmap visual is rendered under the <strong>Plots</strong> tab.
+                Diagnostic charts, heatmaps, and evaluations are rendered under the <strong>Plots</strong> tab.
               </p>
             </div>
             <button
@@ -74,7 +61,7 @@ export default function ImageRenderer({
 
     return (
       <div className="text-slate-500 text-center py-8 font-sans text-xs">
-        No images generated yet. Add a visualization or plot block and click{" "}
+        No image assets generated yet. Add an image processing or media block and click{" "}
         <span className="text-emerald-400 font-semibold">"Run Pipeline"</span>.
       </div>
     );

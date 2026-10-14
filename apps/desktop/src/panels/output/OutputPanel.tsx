@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useExecutionStore, useUiStore, type OutputTab } from "../../stores";
 import { outputRendererRegistry } from "./registry";
 import "./renderers"; // Ensure standard renderers are registered
+import { getPlotsTabCount, getImagesTabCount } from "./outputClassification";
 import {
   MaximizeIcon,
   MinimizeIcon,
@@ -76,25 +77,10 @@ export default function OutputPanel() {
       case "metrics":
         return liveOutputs.filter((o) => o.type === "metrics").length;
       case "image":
-        return liveOutputs.filter(
-          (o) =>
-            o.type === "image" &&
-            (o.format === "png" || o.format === "svg" || o.format === "base64")
-        ).length;
+        return getImagesTabCount(liveOutputs);
       case "plots":
-      case "visuals": {
-        const hasMatrix = liveOutputs.some(
-          (o) =>
-            (o.type === "metrics" &&
-              (Array.isArray(o.metrics["matrix"]) ||
-                Array.isArray(o.metrics["confusion_matrix"]))) ||
-            (o.type === "image" && o.format === "confusion_matrix")
-        );
-        const otherPlots = liveOutputs.filter(
-          (o) => o.type === "image" && o.format !== "confusion_matrix"
-        ).length;
-        return (hasMatrix ? 1 : 0) + otherPlots;
-      }
+      case "visuals":
+        return getPlotsTabCount(liveOutputs);
       default:
         return 0;
      }
@@ -223,16 +209,18 @@ export default function OutputPanel() {
       </div>
 
       {/* Content Area Host */}
-      <div className="flex-1 p-3 overflow-auto font-mono text-xs select-text bg-transparent min-h-0 min-w-0 flex flex-col">
+      <div className="flex-1 p-3 overflow-hidden font-mono text-xs select-text bg-transparent min-h-0 min-w-0 flex flex-col">
         {RendererComponent ? (
-          <RendererComponent
-            messages={liveOutputs}
-            latestMessage={liveOutputs[liveOutputs.length - 1]}
-            executionResult={result}
-            runState={runState}
-            statusMessage={statusMessage}
-            onClear={clearOutputs}
-          />
+          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+            <RendererComponent
+              messages={liveOutputs}
+              latestMessage={liveOutputs[liveOutputs.length - 1]}
+              executionResult={result}
+              runState={runState}
+              statusMessage={statusMessage}
+              onClear={clearOutputs}
+            />
+          </div>
         ) : (
           <div className="text-slate-500 text-center py-6 font-mono text-xs">
             No renderer registered for channel "{currentTabConfig.rendererType}".
