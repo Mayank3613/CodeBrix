@@ -123,8 +123,8 @@ code, pre, .font-mono {
   height: 100vh;
   width: 100vw;
   box-sizing: border-box;
-  padding: 8px;
-  gap: 8px;
+  padding: 0;
+  gap: 0;
   background: transparent;
   overflow: hidden;
 }
@@ -156,9 +156,9 @@ code, pre, .font-mono {
 .cb-properties { grid-area: properties; }
 .cb-output     { grid-area: output; min-width: 0; min-height: 0; }
 
-/* ─── Floating Glassmorphic Bento Frames ──────────── */
+/* ─── Flush Glassmorphic Bento Frames ─────────────── */
 .cb-bento-frame {
-  border-radius: var(--cb-radius);
+  border-radius: 0;
   background: linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.08) 0%,
@@ -166,15 +166,10 @@ code, pre, .font-mono {
   ), var(--cb-bg-surface);
   backdrop-filter: blur(28px) saturate(210%);
   -webkit-backdrop-filter: blur(28px) saturate(210%);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: var(--cb-shadow-panel);
+  border: none;
+  box-shadow: none;
   position: relative;
   overflow: hidden;
-  transition: border-color var(--cb-transition), box-shadow var(--cb-transition);
-}
-
-.cb-bento-frame:hover {
-  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .glass-panel {
@@ -227,49 +222,78 @@ code, pre, .font-mono {
   background: rgba(255, 255, 255, 0.06);
 }
 
-/* ─── Integrated Bento Resize Handles ────────────── */
+/* ─── Flush Resize Handles (thin separator lines) ── */
 .cb-resize-handle {
   position: absolute;
   z-index: 35;
-  transition: all var(--cb-transition);
+  transition: background var(--cb-transition);
+  /* Thin visible separator line */
+  background: rgba(255, 255, 255, 0.08);
 }
 
+/* Horizontal (column) resize — right edge of left panel */
 .cb-resize-handle--right {
-  right: -5px;
-  top: 12px;
-  bottom: 12px;
-  width: 10px;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
   cursor: col-resize;
-  border-radius: 4px;
 }
 
+/* Expand the click target beyond the 1px visual line */
+.cb-resize-handle--right::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 7px;
+}
+
+/* Horizontal (column) resize — left edge of right panel */
 .cb-resize-handle--left {
-  left: -5px;
-  top: 12px;
-  bottom: 12px;
-  width: 10px;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
   cursor: col-resize;
-  border-radius: 4px;
 }
 
+.cb-resize-handle--left::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 7px;
+}
+
+/* Vertical (row) resize — top edge of bottom panel */
 .cb-resize-handle--top {
-  top: -5px;
-  left: 16px;
-  right: 16px;
-  height: 10px;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
   cursor: row-resize;
-  border-radius: 4px;
+}
+
+.cb-resize-handle--top::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -3px;
+  height: 7px;
 }
 
 .cb-resize-handle:hover,
 .cb-resize-handle:active {
   background: rgba(255, 255, 255, 0.25);
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
 
 .cb-resize-handle--active {
   background: var(--cb-cyan) !important;
-  box-shadow: 0 0 14px rgba(6, 182, 212, 0.8) !important;
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.6) !important;
 }
 
 /* ─── Sleek Scrollbars ───────────────────────────── */
@@ -373,9 +397,10 @@ code, pre, .font-mono {
   ), var(--cb-bg-surface);
   backdrop-filter: blur(var(--cb-blur-heavy)) saturate(200%);
   -webkit-backdrop-filter: blur(var(--cb-blur-heavy)) saturate(200%);
-  border: 1px solid var(--cb-border);
-  border-radius: var(--cb-radius);
-  box-shadow: var(--cb-shadow-panel);
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  box-shadow: none;
   z-index: 40;
   flex-shrink: 0;
   min-width: 0;
@@ -392,7 +417,7 @@ code, pre, .font-mono {
 }
 
 .cb-toolbar:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-bottom-color: rgba(255, 255, 255, 0.15);
 }
 
 .cb-toolbar-group {
@@ -601,7 +626,7 @@ input[type="range"].cb-range::-webkit-slider-thumb {
 .cb-validation-bar {
   background: rgba(244, 63, 94, 0.08);
   border: 1px solid rgba(244, 63, 94, 0.25);
-  border-radius: var(--cb-radius-md);
+  border-radius: 0;
   padding: 7px 16px;
   display: flex;
   align-items: center;
@@ -609,7 +634,7 @@ input[type="range"].cb-range::-webkit-slider-thumb {
   font-size: 11px;
   z-index: 35;
   flex-shrink: 0;
-  box-shadow: 0 4px 16px rgba(244, 63, 94, 0.12);
+  box-shadow: none;
   backdrop-filter: blur(16px);
 }
 

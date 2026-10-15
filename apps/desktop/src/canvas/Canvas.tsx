@@ -51,6 +51,17 @@ function CanvasContent() {
   // Dedicated selection state for connections (edges)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
+  // Allow the user to dismiss the blank-playground empty-state overlay
+  const [emptyStateDismissed, setEmptyStateDismissed] = useState(false);
+  const blockCount = Object.keys(graph.blocks).length;
+
+  // Re-show the empty state when all blocks are removed (e.g. Reset)
+  useEffect(() => {
+    if (blockCount === 0) {
+      setEmptyStateDismissed(false);
+    }
+  }, [blockCount]);
+
   // Automatically fit nodes within canvas bounds when a graph or template is loaded
   const blockKeys = useMemo(
     () => Object.keys(graph.blocks).sort().join(","),
@@ -509,9 +520,17 @@ function CanvasContent() {
       </ReactFlow>
 
       {/* Pristine Blank Playground Empty State */}
-      {Object.keys(graph.blocks).length === 0 && (
+      {blockCount === 0 && !emptyStateDismissed && (
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
-          <div className="text-center p-8 rounded-3xl bg-[#090d18]/85 backdrop-blur-2xl border border-white/10 shadow-[0_24px_64px_rgba(0,0,0,0.8)] max-w-sm pointer-events-auto animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative text-center p-8 rounded-3xl bg-[#090d18]/85 backdrop-blur-2xl border border-white/10 shadow-[0_24px_64px_rgba(0,0,0,0.8)] max-w-sm pointer-events-auto animate-in fade-in zoom-in-95 duration-200">
+            {/* Close / dismiss button */}
+            <button
+              onClick={() => setEmptyStateDismissed(true)}
+              className="absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              aria-label="Dismiss blank playground hint"
+            >
+              <CloseIcon size={14} />
+            </button>
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500/20 via-emerald-500/20 to-indigo-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto mb-3 text-emerald-400 shadow-[0_0_24px_rgba(16,185,129,0.25)]">
               <SparklesIcon size={24} />
             </div>

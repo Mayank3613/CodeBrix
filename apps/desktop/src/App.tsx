@@ -71,7 +71,7 @@ export default function App() {
   return (
     <main className={shellClass} style={shellStyle}>
       {/* ─── Topbar: Unified IDE Toolbar & Validation Status ─── */}
-      <div className="cb-topbar flex flex-col gap-1.5 shrink-0 overflow-visible z-40">
+      <div className="cb-topbar flex flex-col shrink-0 overflow-visible z-40">
         <Toolbar />
         <ValidationPanel />
       </div>
