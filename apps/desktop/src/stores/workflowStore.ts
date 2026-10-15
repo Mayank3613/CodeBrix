@@ -18,7 +18,7 @@ function cloneGraph(graph: WorkflowGraph): WorkflowGraph {
     ...graph,
     blocks: JSON.parse(JSON.stringify(graph.blocks)),
     connections: JSON.parse(JSON.stringify(graph.connections)),
-    metadata: { ...graph.metadata },
+    metadata: graph.metadata ? { ...graph.metadata } : undefined,
   };
 }
 

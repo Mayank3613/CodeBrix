@@ -1,0 +1,126 @@
+/* ─────────────────────────────────────────────────────────────
+   CodeBrix IDE – Centralized Design System Tokens
+   Professional Developer Tool Theme (VS Code / Figma / n8n)
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  /* ─── Typography ─── */
+  --cb-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --cb-font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --cb-text-xs: 11px;
+  --cb-text-sm: 12px;
+  --cb-text-base: 13px;
+  --cb-text-md: 14px;
+  --cb-text-lg: 16px;
+
+  /* ─── Neutral Hue Family (Slate/Zinc undertones, no jarring navy mix) ─── */
+  --cb-elevation-app: #0c0e14;       /* Canvas & background */
+  --cb-elevation-panel: #12151e;     /* Sidebars, properties, terminal */
+  --cb-elevation-raised: #181c28;    /* Cards, search bars, inputs */
+  --cb-elevation-overlay: #1e2333;   /* Menus, dialogs, popovers, tooltips */
+
+  /* Surface borders */
+  --cb-border-subtle: rgba(255, 255, 255, 0.07);
+  --cb-border-default: rgba(255, 255, 255, 0.11);
+  --cb-border-strong: rgba(255, 255, 255, 0.18);
+  --cb-border-focus: rgba(16, 185, 129, 0.65);
+
+  /* Text hierarchy with WCAG AA compliance */
+  --cb-text-primary: #f1f5f9;        /* 94% white */
+  --cb-text-secondary: #94a3b8;      /* readable slate-400 */
+  --cb-text-muted: #64748b;          /* slate-500 */
+  --cb-text-disabled: #475569;
+
+  /* ─── Accent & Interactive Focus (Emerald Green) ─── */
+  --cb-accent: #10b981;
+  --cb-accent-hover: #059669;
+  --cb-accent-active: #047857;
+  --cb-accent-subtle: rgba(16, 185, 129, 0.12);
+  --cb-accent-border: rgba(16, 185, 129, 0.35);
+  --cb-accent-ring: rgba(16, 185, 129, 0.40);
+  --cb-accent-foreground: #ffffff;
+
+  /* ─── Semantic Colors ─── */
+  --cb-success: #10b981;
+  --cb-success-subtle: rgba(16, 185, 129, 0.12);
+  --cb-success-border: rgba(16, 185, 129, 0.30);
+
+  --cb-warning: #f59e0b;
+  --cb-warning-subtle: rgba(245, 158, 11, 0.12);
+  --cb-warning-border: rgba(245, 158, 11, 0.30);
+
+  --cb-error: #ef4444;
+  --cb-error-subtle: rgba(239, 68, 68, 0.12);
+  --cb-error-border: rgba(239, 68, 68, 0.30);
+
+  --cb-info: #38bdf8;
+  --cb-info-subtle: rgba(56, 189, 248, 0.12);
+  --cb-info-border: rgba(56, 189, 248, 0.30);
+
+  /* ─── Block Category Hues (One Hue per Category) ─── */
+  --cb-cat-data: #06b6d4;            /* Cyan */
+  --cb-cat-data-subtle: rgba(6, 182, 212, 0.12);
+  --cb-cat-data-border: rgba(6, 182, 212, 0.35);
+
+  --cb-cat-prep: #3b82f6;            /* Blue */
+  --cb-cat-prep-subtle: rgba(59, 130, 246, 0.12);
+  --cb-cat-prep-border: rgba(59, 130, 246, 0.35);
+
+  --cb-cat-ml: #8b5cf6;              /* Purple */
+  --cb-cat-ml-subtle: rgba(139, 92, 246, 0.12);
+  --cb-cat-ml-border: rgba(139, 92, 246, 0.35);
+
+  --cb-cat-eval: #f59e0b;            /* Amber */
+  --cb-cat-eval-subtle: rgba(245, 158, 11, 0.12);
+  --cb-cat-eval-border: rgba(245, 158, 11, 0.35);
+
+  --cb-cat-viz: #ec4899;             /* Pink */
+  --cb-cat-viz-subtle: rgba(236, 72, 153, 0.12);
+  --cb-cat-viz-border: rgba(236, 72, 153, 0.35);
+
+  /* ─── Dimensions, Radii & Grid ─── */
+  --cb-radius-control: 6px;
+  --cb-radius-panel: 10px;
+  --cb-radius-sm: 4px;
+  --cb-radius-full: 9999px;
+
+  --cb-row-height: 28px;
+  --cb-row-height-lg: 32px;
+  --cb-titlebar-height: 44px;
+  --cb-statusbar-height: 24px;
+  --cb-rail-width: 56px;
+
+  /* Shared header control tokens */
+  --cb-control-height: 28px;
+  --cb-control-radius: 6px;
+  --cb-control-gap: 8px;
+  --cb-control-icon: 16px;
+  --cb-control-text: 13px;
+
+  /* ─── Data Types Port Colors ─── */
+  --cb-port-dataframe: #06b6d4;      /* Cyan */
+  --cb-port-array: #14b8a6;          /* Teal */
+  --cb-port-model: #8b5cf6;          /* Purple */
+  --cb-port-score: #10b981;          /* Emerald */
+  --cb-port-figure: #ec4899;         /* Pink */
+  --cb-port-file: #0ea5e9;           /* Sky */
+  --cb-port-any: #94a3b8;            /* Slate */
+
+  /* Shadows (minimal, overlays only) */
+  --cb-shadow-overlay: 0 12px 32px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--cb-border-subtle);
+  --cb-shadow-tooltip: 0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--cb-border-subtle);
+
+  /* Transitions */
+  --cb-transition-fast: 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  --cb-transition-normal: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

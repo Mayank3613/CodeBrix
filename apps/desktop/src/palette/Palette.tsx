@@ -1,347 +1,56 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { blockRegistry } from "../registry";
 import { useWorkflowStore, useUiStore, useProjectStore } from "../stores";
-import { useLibraryStore } from "../stores/libraryStore";
 import { useCustomBlockStore } from "../stores/customBlockStore";
-import type { BlockDefinition, BlockCategory, PortType } from "@codebrix/types";
+import type { BlockDefinition, BlockCategory } from "@codebrix/types";
 import { PIPELINE_TEMPLATES, type PipelineTemplate } from "../templates/pipelineTemplates";
+import { autoLayoutGraphLeftToRight } from "../canvas/layout";
 import ImportLibraryDialog from "../panels/library/ImportLibraryDialog";
 import CustomBlockModal from "./CustomBlockModal";
 import {
-  SearchIcon,
-  PlusIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  FolderIcon,
-  CloseIcon,
-  AlertTriangleIcon,
-  EditIcon,
-  TrashIcon,
-  ShareIcon,
-  LayersIcon,
-  SparklesIcon,
-  CodeIcon,
-  CompassIcon,
-  LayoutTemplateIcon,
-  CheckIcon,
-} from "../components/common/Icons";
+  Search,
+  ChevronDown,
+  ChevronRight,
+  Database,
+  SlidersHorizontal,
+  Brain,
+  BarChart2,
+  LineChart,
+  Layers,
+  GripVertical,
+  Plus,
+  Trash2,
+  FileUp,
+  Sparkles,
+  Compass,
+  Code2,
+  X,
+} from "lucide-react";
 
-// ─── TYPES & SECTIONS (VS CODE SIDEBAR TABS) ─────────────────────────
-
-export type PaletteSection = "playground" | "library" | "custom" | "templates";
-
-interface TreeGroup {
-  id: string;
-  title: string;
-  code: string;
-  treeBranch: "green" | "red";
-  color: string;
-  badgeBg: string;
-  categoryFilter?: BlockCategory;
-  subgroups: TreeSubgroup[];
+// Category metadata
+interface CategoryConfig {
+  id: BlockCategory;
+  name: string;
+  icon: typeof Database;
+  colorVar: string;
+  badgeClass: string;
 }
 
-interface TreeSubgroup {
-  id: string;
-  title: string;
-  match: (block: BlockDefinition) => boolean;
-}
-
-const TREE_GROUPS: TreeGroup[] = [
-  {
-    id: "group-data",
-    title: "Data Ingestion & Sinks",
-    code: "DATA",
-    treeBranch: "green",
-    color: "text-emerald-400",
-    badgeBg: "bg-emerald-950/50 border-emerald-800/60",
-    categoryFilter: "data",
-    subgroups: [
-      {
-        id: "sub-data-loaders",
-        title: "File Loaders",
-        match: (b) =>
-          b.category === "data" &&
-          (b.id.includes("loader") ||
-            b.id.includes("csv") ||
-            b.id.includes("json") ||
-            b.id.includes("excel") ||
-            b.id.includes("parquet")),
-      },
-      {
-        id: "sub-data-generators",
-        title: "Dataset Generators",
-        match: (b) =>
-          b.category === "data" &&
-          (b.id.includes("synthetic") || b.tags?.includes("generator") === true),
-      },
-      {
-        id: "sub-data-export",
-        title: "Exporters & Sinks",
-        match: (b) =>
-          b.category === "data" &&
-          (b.id.includes("export") ||
-            b.tags?.includes("export") === true ||
-            b.tags?.includes("sink") === true),
-      },
-      {
-        id: "sub-data-general",
-        title: "Other Data Blocks",
-        match: (b) =>
-          b.category === "data" &&
-          !b.id.includes("loader") &&
-          !b.id.includes("csv") &&
-          !b.id.includes("json") &&
-          !b.id.includes("excel") &&
-          !b.id.includes("parquet") &&
-          !b.id.includes("synthetic") &&
-          !b.id.includes("export"),
-      },
-    ],
-  },
-  {
-    id: "group-prep",
-    title: "Data Preprocessing",
-    code: "PREP",
-    treeBranch: "green",
-    color: "text-emerald-400",
-    badgeBg: "bg-emerald-950/50 border-emerald-800/60",
-    categoryFilter: "preprocessing",
-    subgroups: [
-      {
-        id: "sub-prep-cleaning",
-        title: "Cleaning & Imputation",
-        match: (b) =>
-          b.category === "preprocessing" &&
-          (b.id.includes("imputer") || b.id.includes("drop") || b.id.includes("outlier")),
-      },
-      {
-        id: "sub-prep-scaling",
-        title: "Scaling & Encoding",
-        match: (b) =>
-          b.category === "preprocessing" &&
-          (b.id.includes("scaler") || b.id.includes("encoder") || b.id.includes("pca")),
-      },
-      {
-        id: "sub-prep-split",
-        title: "Data Splitting",
-        match: (b) => b.category === "preprocessing" && b.id.includes("split"),
-      },
-      {
-        id: "sub-prep-other",
-        title: "Other Preprocessing",
-        match: (b) =>
-          b.category === "preprocessing" &&
-          !b.id.includes("imputer") &&
-          !b.id.includes("drop") &&
-          !b.id.includes("scaler") &&
-          !b.id.includes("encoder") &&
-          !b.id.includes("pca") &&
-          !b.id.includes("split"),
-      },
-    ],
-  },
-  {
-    id: "group-ml-class",
-    title: "Supervised: Classification",
-    code: "CLF",
-    treeBranch: "green",
-    color: "text-emerald-400",
-    badgeBg: "bg-emerald-950/50 border-emerald-800/60",
-    categoryFilter: "ml",
-    subgroups: [
-      {
-        id: "sub-ml-tree-models",
-        title: "Tree & Ensemble Classifiers",
-        match: (b) =>
-          b.category === "ml" &&
-          ((b.id.includes("forest") && !b.id.includes("regressor")) ||
-            (b.id.includes("decision_tree") && !b.id.includes("regressor")) ||
-            (b.id.includes("boosting") && !b.id.includes("regressor"))),
-      },
-      {
-        id: "sub-ml-linear-models",
-        title: "Linear & Kernel Classifiers",
-        match: (b) =>
-          b.category === "ml" &&
-          (b.id.includes("logistic") ||
-            b.id === "ml.svc" ||
-            b.id.includes("knn") ||
-            b.id.includes("nb") ||
-            b.id.includes("bayes")),
-      },
-    ],
-  },
-  {
-    id: "group-ml-reg",
-    title: "Supervised: Regression",
-    code: "REG",
-    treeBranch: "green",
-    color: "text-emerald-400",
-    badgeBg: "bg-emerald-950/50 border-emerald-800/60",
-    categoryFilter: "ml",
-    subgroups: [
-      {
-        id: "sub-ml-linear-reg",
-        title: "Linear & Regularized Regressors",
-        match: (b) =>
-          b.category === "ml" &&
-          (b.id.includes("linear_regression") ||
-            b.id.includes("ridge") ||
-            b.id.includes("lasso") ||
-            b.id === "ml.svr"),
-      },
-      {
-        id: "sub-ml-ensemble-reg",
-        title: "Tree & Boosting Regressors",
-        match: (b) =>
-          b.category === "ml" &&
-          (b.id.includes("regressor") ||
-            (b.id.includes("boosting") && b.id.includes("regressor"))),
-      },
-    ],
-  },
-  {
-    id: "group-ml-unsupervised",
-    title: "Unsupervised & Clustering",
-    code: "UNSUP",
-    treeBranch: "green",
-    color: "text-emerald-400",
-    badgeBg: "bg-emerald-950/50 border-emerald-800/60",
-    categoryFilter: "ml",
-    subgroups: [
-      {
-        id: "sub-ml-clustering",
-        title: "Clustering Algorithms",
-        match: (b) =>
-          b.category === "ml" &&
-          (b.id.includes("kmeans") ||
-            b.id.includes("dbscan") ||
-            b.tags?.includes("clustering") === true),
-      },
-    ],
-  },
-  {
-    id: "group-ml-inference",
-    title: "Inference & Prediction",
-    code: "PRED",
-    treeBranch: "green",
-    color: "text-emerald-400",
-    badgeBg: "bg-emerald-950/50 border-emerald-800/60",
-    categoryFilter: "ml",
-    subgroups: [
-      {
-        id: "sub-ml-predict-tools",
-        title: "Prediction & Scoring",
-        match: (b) =>
-          b.category === "ml" &&
-          (b.id.includes("predict") || b.tags?.includes("predict") === true),
-      },
-    ],
-  },
-  {
-    id: "group-eval",
-    title: "Evaluation & Metrics",
-    code: "EVAL",
-    treeBranch: "red",
-    color: "text-rose-400",
-    badgeBg: "bg-rose-950/50 border-rose-800/60",
-    categoryFilter: "evaluation",
-    subgroups: [
-      {
-        id: "sub-eval-metrics",
-        title: "Scoring & Performance Reports",
-        match: (b) => b.category === "evaluation",
-      },
-    ],
-  },
-  {
-    id: "group-viz",
-    title: "Visualization & Plots",
-    code: "VIZ",
-    treeBranch: "red",
-    color: "text-rose-400",
-    badgeBg: "bg-rose-950/50 border-rose-800/60",
-    categoryFilter: "visualization",
-    subgroups: [
-      {
-        id: "sub-viz-charts",
-        title: "Diagnostic Charts & Plots",
-        match: (b) => b.category === "visualization",
-      },
-    ],
-  },
-  {
-    id: "group-core",
-    title: "Control Flow & Scripting",
-    code: "FLOW",
-    treeBranch: "red",
-    color: "text-rose-400",
-    badgeBg: "bg-rose-950/50 border-rose-800/60",
-    categoryFilter: "core",
-    subgroups: [
-      {
-        id: "sub-core-flow",
-        title: "Logic, Variables & Code",
-        match: (b) => b.category === "core",
-      },
-    ],
-  },
+const CATEGORIES: CategoryConfig[] = [
+  { id: "data", name: "Data Ingestion & Sinks", icon: Database, colorVar: "var(--cb-cat-data)", badgeClass: "text-cyan-300 bg-cyan-950/40 border-cyan-800/60" },
+  { id: "preprocessing", name: "Data Preprocessing", icon: SlidersHorizontal, colorVar: "var(--cb-cat-prep)", badgeClass: "text-blue-300 bg-blue-950/40 border-blue-800/60" },
+  { id: "ml", name: "Machine Learning", icon: Brain, colorVar: "var(--cb-cat-ml)", badgeClass: "text-purple-300 bg-purple-950/40 border-purple-800/60" },
+  { id: "evaluation", name: "Evaluation & Metrics", icon: BarChart2, colorVar: "var(--cb-cat-eval)", badgeClass: "text-amber-300 bg-amber-950/40 border-amber-800/60" },
+  { id: "visualization", name: "Visualizations & Plots", icon: LineChart, colorVar: "var(--cb-cat-viz)", badgeClass: "text-pink-300 bg-pink-950/40 border-pink-800/60" },
+  { id: "core", name: "Core & Utility", icon: Layers, colorVar: "var(--cb-accent)", badgeClass: "text-emerald-300 bg-emerald-950/40 border-emerald-800/60" },
 ];
 
-const PORT_BADGE_COLORS: Record<PortType, string> = {
-  dataframe: "bg-cyan-500/15 text-cyan-300 border-cyan-400/35 font-medium",
-  dataset: "bg-blue-500/15 text-blue-300 border-blue-400/35 font-medium",
-  series: "bg-indigo-500/15 text-indigo-300 border-indigo-400/35 font-medium",
-  model: "bg-purple-500/15 text-purple-300 border-purple-400/35 font-medium",
-  scalar: "bg-emerald-500/15 text-emerald-300 border-emerald-400/35 font-medium",
-  number: "bg-emerald-500/15 text-emerald-300 border-emerald-400/35 font-medium",
-  string: "bg-slate-500/15 text-slate-200 border-slate-400/35 font-medium",
-  boolean: "bg-rose-500/15 text-rose-300 border-rose-400/35 font-medium",
-  array: "bg-teal-500/15 text-teal-300 border-teal-400/35 font-medium",
-  file: "bg-sky-500/15 text-sky-300 border-sky-400/35 font-medium",
-  figure: "bg-pink-500/15 text-pink-300 border-pink-400/35 font-medium",
-  dict: "bg-violet-500/15 text-violet-300 border-violet-400/35 font-medium",
-  any: "bg-slate-500/15 text-slate-200 border-slate-400/35 font-medium",
-};
-
 export default function Palette() {
-  // Active VS Code sidebar tab: "playground" | "library" | "custom" | "templates"
-  const [activeSection, setActiveSection] = useState<PaletteSection>("library");
-
-  useEffect(() => {
-    const handleSwitchSection = (e: Event) => {
-      const customEvent = e as CustomEvent<{ section: PaletteSection }>;
-      if (customEvent.detail?.section) {
-        setActiveSection(customEvent.detail.section);
-      }
-    };
-    window.addEventListener("codebrix:switch-palette-section", handleSwitchSection);
-    return () => window.removeEventListener("codebrix:switch-palette-section", handleSwitchSection);
-  }, []);
-
-  // Search & Filters
-  const [search, setSearch] = useState("");
-  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>("all");
-  const [templateFilter, setTemplateFilter] = useState<string>("all");
-  const [openNodes, setOpenNodes] = useState<Set<string>>(
-    new Set(["group-data", "group-prep", "group-ml-class"])
-  );
-
-  // Hover details state
-  const [hoveredBlock, setHoveredBlock] = useState<BlockDefinition | null>(null);
-  const [hoverPosition, setHoverPosition] = useState<{ top: number; left: number } | null>(null);
-
-  // Dialogs & Custom Blocks
-  const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
-  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
-  const [modalTemplate, setModalTemplate] = useState<"transform" | "model" | "metric" | null>(null);
-
-  // Global store bindings
-  const isPaletteOpen = useUiStore((s) => s.isPaletteOpen);
+  const activeSection = useUiStore((s) => s.activePaletteSection);
+  const setActiveSection = useUiStore((s) => s.setActivePaletteSection);
   const selectedBlockId = useUiStore((s) => s.selectedBlockId);
   const selectBlock = useUiStore((s) => s.selectBlock);
+
   const graph = useWorkflowStore((s) => s.graph);
   const setGraph = useWorkflowStore((s) => s.setGraph);
   const addBlock = useWorkflowStore((s) => s.addBlock);
@@ -349,85 +58,76 @@ export default function Palette() {
   const setProjectName = useProjectStore((s) => s.setProjectName);
   const markDirty = useProjectStore((s) => s.markDirty);
 
-  const warnings = useLibraryStore((s) => s.warnings);
-  const dismissWarning = useLibraryStore((s) => s.dismissWarning);
-
   const customBlocks = useCustomBlockStore((s) => s.customBlocks);
   const deleteCustomBlock = useCustomBlockStore((s) => s.deleteCustomBlock);
-  const exportCustomBlockJson = useCustomBlockStore((s) => s.exportCustomBlockJson);
-  const importCustomBlockJson = useCustomBlockStore((s) => s.importCustomBlockJson);
 
-  // Fetch all registered blocks
+  const [search, setSearch] = useState("");
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>("all");
+  const [openCategories, setOpenCategories] = useState<Set<string>>(() => new Set(["data"])); // First open by default
+  const [hoveredBlock, setHoveredBlock] = useState<{ block: BlockDefinition; rect: DOMRect } | null>(null);
+
+  const isCustomBlockModalOpen = useUiStore((s) => s.isCustomBlockModalOpen);
+  const editCustomBlockId = useUiStore((s) => s.editCustomBlockId);
+  const openCustomBlockModal = useUiStore((s) => s.openCustomBlockModal);
+  const closeCustomBlockModal = useUiStore((s) => s.closeCustomBlockModal);
+  const [isImportLibraryOpen, setIsImportLibraryOpen] = useState(false);
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const hoverTimeoutRef = useRef<number | null>(null);
+
+  // Global "/" keyboard shortcut to focus search
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "/" && !["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        setActiveSection("library");
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [setActiveSection]);
+
+  // Listen to switch palette section custom events
+  useEffect(() => {
+    const handleSwitch = (e: CustomEvent<{ section: import("../stores").PaletteSection }>) => {
+      if (e.detail?.section) {
+        setActiveSection(e.detail.section);
+      }
+    };
+    window.addEventListener("codebrix:switch-palette-section" as any, handleSwitch);
+    return () => window.removeEventListener("codebrix:switch-palette-section" as any, handleSwitch);
+  }, [setActiveSection]);
+
   const allBlocks = useMemo(() => {
     return blockRegistry.list();
-  }, [customBlocks, isCustomModalOpen]);
+  }, []);
 
-  // Canvas block instances for Playground Outline
-  const canvasBlocks = useMemo(() => {
-    return Object.values(graph.blocks);
-  }, [graph.blocks]);
-
-  // Filter blocks by search query
   const searchedBlocks = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return allBlocks;
-
     return allBlocks.filter((b) => {
-      if (b.name.toLowerCase().includes(q)) return true;
-      if (b.description?.toLowerCase().includes(q)) return true;
-      if (b.id.toLowerCase().includes(q)) return true;
-      if (b.category?.toLowerCase().includes(q)) return true;
-      if (b.tags?.some((t) => t.toLowerCase().includes(q))) return true;
-      return false;
-    });
-  }, [allBlocks, search]);
-
-  // Auto-expand matching folders on search
-  useEffect(() => {
-    if (search.trim()) {
-      const matchingGroupIds = new Set<string>();
-      for (const group of TREE_GROUPS) {
-        for (const sub of group.subgroups) {
-          const hasMatch = searchedBlocks.some((b) => sub.match(b));
-          if (hasMatch) {
-            matchingGroupIds.add(group.id);
-            matchingGroupIds.add(sub.id);
-          }
-        }
+      if (activeCategoryFilter !== "all" && b.category !== activeCategoryFilter) {
+        return false;
       }
-      setOpenNodes(matchingGroupIds);
-    }
-  }, [search, searchedBlocks]);
+      if (!q) return true;
+      return (
+        b.name.toLowerCase().includes(q) ||
+        b.id.toLowerCase().includes(q) ||
+        b.description.toLowerCase().includes(q) ||
+        b.tags?.some((t) => t.toLowerCase().includes(q)) ||
+        b.inputs.some((p) => p.name.toLowerCase().includes(q) || p.type.toLowerCase().includes(q)) ||
+        b.outputs.some((p) => p.name.toLowerCase().includes(q) || p.type.toLowerCase().includes(q))
+      );
+    });
+  }, [allBlocks, search, activeCategoryFilter]);
 
-  if (!isPaletteOpen) return null;
-
-  // Toggle fold state
-  const toggleNode = (nodeId: string) => {
-    setOpenNodes((prev) => {
+  const toggleCategory = (catId: string) => {
+    setOpenCategories((prev) => {
       const next = new Set(prev);
-      if (next.has(nodeId)) next.delete(nodeId);
-      else next.add(nodeId);
+      if (next.has(catId)) next.delete(catId);
+      else next.add(catId);
       return next;
     });
-  };
-
-  const expandAll = () => {
-    const allIds = new Set<string>();
-    for (const group of TREE_GROUPS) {
-      allIds.add(group.id);
-      for (const sub of group.subgroups) allIds.add(sub.id);
-    }
-    setOpenNodes(allIds);
-  };
-
-  const collapseAll = () => {
-    setOpenNodes(new Set());
-  };
-
-  const handleAdd = (def: BlockDefinition) => {
-    const x = 320 + Math.random() * 80;
-    const y = 180 + Math.random() * 80;
-    addBlock(def, { x, y });
   };
 
   const handleDragStart = (e: React.DragEvent, block: BlockDefinition) => {
@@ -436,73 +136,24 @@ export default function Palette() {
   };
 
   const handleMouseEnterBlock = (e: React.MouseEvent, block: BlockDefinition) => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     const rect = e.currentTarget.getBoundingClientRect();
-    setHoverPosition({ top: rect.top, left: rect.right + 12 });
-    setHoveredBlock(block);
+    hoverTimeoutRef.current = window.setTimeout(() => {
+      setHoveredBlock({ block, rect });
+    }, 200);
   };
 
   const handleMouseLeaveBlock = () => {
-    setHoveredBlock(null);
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = window.setTimeout(() => {
+      setHoveredBlock(null);
+    }, 150);
   };
 
-  // Custom block actions
-  const handleOpenCreateModal = (template: "transform" | "model" | "metric" | null = null) => {
-    setEditingBlockId(null);
-    setModalTemplate(template);
-    setIsCustomModalOpen(true);
-  };
-
-  const handleEditCustomBlock = (blockId: string) => {
-    setEditingBlockId(blockId);
-    setModalTemplate(null);
-    setIsCustomModalOpen(true);
-  };
-
-  const handleDeleteCustomBlock = (blockId: string) => {
-    if (window.confirm(`Delete custom block "${blockId}"?`)) {
-      deleteCustomBlock(blockId);
-      blockRegistry.unregister(blockId);
-    }
-  };
-
-  const handleExportCustomBlock = (blockId: string) => {
-    const json = exportCustomBlockJson(blockId);
-    if (!json) return;
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${blockId.replace(/[^a-z0-9_-]/gi, "_")}.cbx-block.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleQuickImportJson = async () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      const text = await file.text();
-      const res = importCustomBlockJson(text);
-      if (res.success && res.block) {
-        blockRegistry.register(res.block);
-        alert(`Successfully imported custom block: "${res.block.name}"`);
-      } else {
-        alert(`Failed to import block:\n${res.error}`);
-      }
-    };
-    input.click();
-  };
-
-  // Template loader action
   const handleLoadTemplate = (tpl: PipelineTemplate) => {
     if (
-      canvasBlocks.length > 0 &&
-      !window.confirm(
-        `Load "${tpl.title}" template into the playground? This will replace your current canvas.`
-      )
+      Object.keys(graph.blocks).length > 0 &&
+      !window.confirm(`Load "${tpl.title}" template? Current canvas workflow will be replaced.`)
     ) {
       return;
     }
@@ -513,846 +164,468 @@ export default function Palette() {
       targetBlockId: c.targetBlockId ?? c.toBlockId,
       targetPortId: c.targetPortId ?? c.toPortId,
     }));
+    const newPositions = autoLayoutGraphLeftToRight({
+      ...tpl.graph,
+      connections: normalizedConnections,
+    });
+    const layoutedBlocks = { ...tpl.graph.blocks };
+    for (const [id, pos] of Object.entries(newPositions)) {
+      if (layoutedBlocks[id]) {
+        layoutedBlocks[id] = {
+          ...layoutedBlocks[id],
+          position: pos,
+        };
+      }
+    }
     setGraph({
       ...tpl.graph,
+      blocks: layoutedBlocks,
       connections: normalizedConnections,
     });
     setProjectName(tpl.title);
     markDirty(true);
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("codebrix:fit-view"));
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("codebrix:fit-view"));
+      }, 50);
     }
   };
 
-  // Filtered Templates
-  const filteredTemplates = useMemo(() => {
-    if (templateFilter === "all") return PIPELINE_TEMPLATES;
-    return PIPELINE_TEMPLATES.filter((t) => t.category === templateFilter);
-  }, [templateFilter]);
-
-  // Visible Tree Groups filtered by activeCategoryFilter
-  const visibleGroups = useMemo(() => {
-    if (activeCategoryFilter === "all") return TREE_GROUPS;
-    return TREE_GROUPS.filter((g) => g.categoryFilter === activeCategoryFilter);
-  }, [activeCategoryFilter]);
+  const canvasBlocks = Object.values(graph.blocks);
 
   return (
-    <>
-      <aside
-        aria-label="IDE Sidebar"
-        className="w-full h-full flex overflow-hidden select-none"
-      >
-        {/* ─── VS Code Vertical Activity Rail ─── */}
-        <nav
-          aria-label="Activity Bar"
-          className="w-12 shrink-0 border-r border-white/10 bg-black/20 flex flex-col items-center py-2.5 space-y-2 z-20"
-        >
-          {/* Playground / Active Pipeline */}
-          <button
-            onClick={() => setActiveSection("playground")}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-              activeSection === "playground"
-                ? "bg-white/10 text-white border border-white/20"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
-            }`}
-            title="Pipeline explorer"
-          >
-            <CompassIcon size={16} />
-            {canvasBlocks.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-700 text-slate-200 font-bold font-mono text-[9px] flex items-center justify-center border border-white/10 shadow-sm">
-                {canvasBlocks.length}
+    <aside aria-label="Block Palette" className="w-full h-full flex flex-col bg-[var(--cb-elevation-panel)] select-none overflow-hidden relative">
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION: BLOCKS LIBRARY (Primary)
+         ───────────────────────────────────────────────────────────── */}
+      {activeSection === "library" && (
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Single-line Header: "Blocks (49)" */}
+          <div className="h-9 px-3 flex items-center justify-between border-b border-[var(--cb-border-subtle)] shrink-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[12px] font-semibold text-[var(--cb-text-primary)]">Blocks</span>
+              <span className="text-[11px] font-mono text-[var(--cb-text-muted)]">
+                ({searchedBlocks.length})
               </span>
-            )}
-            {activeSection === "playground" && (
-              <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-emerald-400 rounded-r" />
-            )}
-          </button>
+            </div>
 
-          {/* Block Library */}
-          <button
-            onClick={() => setActiveSection("library")}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-              activeSection === "library"
-                ? "bg-white/10 text-white border border-white/20"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
-            }`}
-            title="Block libraries"
-          >
-            <LayersIcon size={16} />
-            {activeSection === "library" && (
-              <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-emerald-400 rounded-r" />
-            )}
-          </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setOpenCategories(new Set(CATEGORIES.map((c) => c.id)))}
+                className="text-[10px] text-[var(--cb-text-muted)] hover:text-white px-1.5 py-0.5 rounded-[var(--cb-radius-sm)] hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                Expand
+              </button>
+              <button
+                onClick={() => setOpenCategories(new Set())}
+                className="text-[10px] text-[var(--cb-text-muted)] hover:text-white px-1.5 py-0.5 rounded-[var(--cb-radius-sm)] hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                Collapse
+              </button>
+            </div>
+          </div>
 
-          {/* Custom Block Studio */}
-          <button
-            onClick={() => setActiveSection("custom")}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-              activeSection === "custom"
-                ? "bg-white/10 text-white border border-white/20"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
-            }`}
-            title="Custom blocks"
-          >
-            <CodeIcon size={16} />
-            {customBlocks.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-700 text-slate-200 font-bold font-mono text-[9px] flex items-center justify-center border border-white/10 shadow-sm">
-                {customBlocks.length}
-              </span>
-            )}
-            {activeSection === "custom" && (
-              <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-emerald-400 rounded-r" />
-            )}
-          </button>
-
-          {/* Workflow Blueprints / Templates */}
-          <button
-            onClick={() => setActiveSection("templates")}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-              activeSection === "templates"
-                ? "bg-white/10 text-white border border-white/20"
-                : "text-slate-400 hover:text-white hover:bg-white/[0.05]"
-            }`}
-            title="Templates"
-          >
-            <LayoutTemplateIcon size={16} />
-            {activeSection === "templates" && (
-              <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-emerald-400 rounded-r" />
-            )}
-          </button>
-        </nav>
-
-        {/* ─── Main Panel Content View ─── */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-transparent">
-          {/* ───────────────────────────────────────────────────────────
-              SECTION 1: PIPELINE EXPLORER
-             ─────────────────────────────────────────────────────────── */}
-          {activeSection === "playground" && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="p-3 border-b border-white/10 space-y-2 bg-white/[0.02] shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <CompassIcon size={13} className="text-emerald-400" />
-                    <span className="text-[11px] font-bold text-white tracking-wider uppercase">
-                      Pipeline explorer
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-mono text-slate-300 bg-white/[0.06] border border-white/10 px-2 py-0.5 rounded-full font-medium">
-                    {canvasBlocks.length} nodes
-                  </span>
-                </div>
-                <p className="text-[10.5px] text-slate-400 leading-tight">
-                  Overview of all active blocks and models in your playground canvas.
-                </p>
-              </div>
-
-              {/* Active Canvas Block List */}
-              <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-                {canvasBlocks.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-slate-500 space-y-2.5">
-                    <CompassIcon size={24} className="mx-auto text-slate-600" />
-                    <div>Playground canvas is currently empty.</div>
-                    <div className="flex items-center justify-center gap-2 pt-1">
-                      <button
-                        onClick={() => setActiveSection("library")}
-                        className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-medium transition-colors cursor-pointer"
-                      >
-                        Browse Library
-                      </button>
-                      <button
-                        onClick={() => setActiveSection("templates")}
-                        className="px-2.5 py-1 rounded-lg bg-white/[0.08] hover:bg-white/[0.15] text-slate-300 text-[11px] font-medium transition-colors cursor-pointer"
-                      >
-                        Load Template
-                      </button>
-                    </div>
-                  </div>
+          {/* Search Box with "/" Shortcut Badge */}
+          <div className="p-2 border-b border-[var(--cb-border-subtle)] shrink-0 space-y-2">
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--cb-text-muted)] pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search blocks, algorithms..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-7 pl-8 pr-12 text-[12px] bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] focus:border-[var(--cb-accent)] rounded-[var(--cb-radius-control)] text-[var(--cb-text-primary)] placeholder-[var(--cb-text-muted)] outline-none transition-colors"
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                {search ? (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="p-0.5 text-[var(--cb-text-muted)] hover:text-white cursor-pointer"
+                  >
+                    <X size={11} />
+                  </button>
                 ) : (
-                  canvasBlocks.map((blk) => {
-                    const def = blockRegistry.get(blk.definitionId);
-                    const isSelected = selectedBlockId === blk.id;
-                    const rawPath = (blk.config?.filePath || blk.config?.file || blk.config?.path || "") as string;
-                    const datasetName = typeof rawPath === "string" && rawPath.trim()
-                      ? rawPath.split(/[/\\]/).pop()?.replace(/^["']+|["']+$/g, "")
-                      : null;
-
-                    return (
-                      <div
-                        key={blk.id}
-                        onClick={() => selectBlock(blk.id)}
-                        className={`p-2 rounded-xl transition-all border cursor-pointer flex items-center justify-between group ${
-                          isSelected
-                            ? "bg-cyan-500/15 border-cyan-400/40 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
-                            : "bg-white/[0.03] hover:bg-white/[0.07] border-white/[0.08]"
-                        }`}
-                      >
-                        <div className="truncate mr-2 flex-1">
-                          <div className="flex items-center gap-1.5 truncate">
-                            <span
-                              className={`w-2 h-2 rounded-full shrink-0 ${
-                                blk.state === "running"
-                                  ? "bg-cyan-400 animate-pulse"
-                                  : blk.state === "success"
-                                  ? "bg-emerald-400"
-                                  : blk.state === "failed"
-                                  ? "bg-rose-400"
-                                  : "bg-slate-500"
-                              }`}
-                            />
-                            <span className="text-xs font-semibold text-white truncate">
-                              {blk.label || def?.name || blk.id}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 mt-1 text-[9px] font-mono text-slate-400">
-                            <span className="px-1.5 py-0.2 rounded bg-white/[0.05] border border-white/10 uppercase">
-                              {def?.category || "block"}
-                            </span>
-                            {datasetName && (
-                              <span className="text-cyan-300 truncate max-w-[120px] font-semibold">
-                                📄 {datasetName}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeBlock(blk.id);
-                              if (selectedBlockId === blk.id) selectBlock(null);
-                            }}
-                            className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-950/60 transition-colors"
-                            title="Remove block from canvas"
-                          >
-                            <TrashIcon size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
+                  <kbd className="px-1 py-0.2 rounded bg-white/10 font-mono text-[9px] text-[var(--cb-text-muted)] border border-white/10">
+                    /
+                  </kbd>
                 )}
               </div>
+            </div>
 
-              {/* Playground Summary Footer */}
-              <div className="p-2.5 border-t border-white/10 bg-white/[0.02] flex items-center justify-between text-[10px] font-mono text-slate-400 shrink-0">
-                <span>{graph.connections.length} connections</span>
+            {/* Horizontally Scrollable Category Filter Chips */}
+            <div className="flex items-center gap-1 overflow-x-auto py-0.5 scrollbar-none">
+              {[
+                { id: "all", label: "All" },
+                { id: "data", label: "Data" },
+                { id: "preprocessing", label: "Prep" },
+                { id: "ml", label: "ML" },
+                { id: "evaluation", label: "Eval" },
+                { id: "visualization", label: "Viz" },
+              ].map((chip) => {
+                const isActive = activeCategoryFilter === chip.id;
+                return (
+                  <button
+                    key={chip.id}
+                    onClick={() => setActiveCategoryFilter(chip.id)}
+                    className={`h-5 px-2 rounded-full text-[10.5px] font-medium whitespace-nowrap transition-colors cursor-pointer flex items-center shrink-0 border ${
+                      isActive
+                        ? "bg-[var(--cb-accent-subtle)] text-emerald-300 border-[var(--cb-accent-border)] font-semibold"
+                        : "bg-white/[0.03] text-[var(--cb-text-secondary)] hover:text-white hover:bg-white/[0.08] border-transparent"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Flat Tree Categories & Compact Block Rows */}
+          <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+            {CATEGORIES.map((cat) => {
+              const blocksInCat = searchedBlocks.filter((b) => b.category === cat.id);
+              if (blocksInCat.length === 0) return null;
+
+              const isOpen = openCategories.has(cat.id) || search.trim().length > 0;
+              const Icon = cat.icon;
+
+              return (
+                <div key={cat.id} className="rounded-[var(--cb-radius-control)] overflow-hidden">
+                  {/* Category Header */}
+                  <button
+                    onClick={() => toggleCategory(cat.id)}
+                    className="w-full h-7 px-2 flex items-center justify-between text-left hover:bg-white/[0.06] rounded-[var(--cb-radius-sm)] transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="text-[var(--cb-text-muted)] group-hover:text-white">
+                        {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                      </span>
+                      <Icon size={13} style={{ color: cat.colorVar }} className="shrink-0" />
+                      <span className="text-[12px] font-semibold text-[var(--cb-text-primary)] truncate">
+                        {cat.name}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-[var(--cb-text-muted)] px-1.5 py-0.2 rounded bg-white/[0.05]">
+                      {blocksInCat.length}
+                    </span>
+                  </button>
+
+                  {/* Compact Block Rows */}
+                  {isOpen && (
+                    <div className="pl-3.5 pr-0.5 py-0.5 space-y-0.5 border-l border-[var(--cb-border-subtle)] ml-3">
+                      {blocksInCat.map((block) => (
+                        <div
+                          key={block.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, block)}
+                          onMouseEnter={(e) => handleMouseEnterBlock(e, block)}
+                          onMouseLeave={handleMouseLeaveBlock}
+                          onClick={() => {
+                            // Quick click to add to center of canvas
+                            addBlock(block, { x: 300 + Math.random() * 80, y: 180 + Math.random() * 80 });
+                          }}
+                          className="h-7 px-2 rounded-[var(--cb-radius-sm)] hover:bg-white/[0.08] flex items-center justify-between cursor-grab active:cursor-grabbing transition-colors group"
+                          title="Click to add or drag onto canvas"
+                        >
+                          <div className="flex items-center gap-2 truncate flex-1 mr-1">
+                            <span
+                              className="w-1.5 h-1.5 rounded-full shrink-0"
+                              style={{ backgroundColor: cat.colorVar }}
+                            />
+                            <span className="text-[12px] text-[var(--cb-text-secondary)] group-hover:text-white font-medium truncate">
+                              {block.name}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <GripVertical size={12} className="text-[var(--cb-text-muted)]" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {searchedBlocks.length === 0 && (
+              <div className="py-8 text-center text-xs text-[var(--cb-text-muted)]">
+                No blocks match "{search}"
+              </div>
+            )}
+          </div>
+
+          {/* Footer: Subtle Text Button "Import Library Manifest..." */}
+          <div className="p-2 border-t border-[var(--cb-border-subtle)] shrink-0">
+            <button
+              onClick={() => setIsImportLibraryOpen(true)}
+              className="w-full h-7 px-2 rounded-[var(--cb-radius-control)] hover:bg-white/[0.06] text-[11px] text-[var(--cb-text-muted)] hover:text-[var(--cb-text-primary)] flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-transparent hover:border-[var(--cb-border-subtle)]"
+            >
+              <FileUp size={12} />
+              <span>Import Library Manifest...</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION: PIPELINE OUTLINE
+         ───────────────────────────────────────────────────────────── */}
+      {activeSection === "playground" && (
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="h-9 px-3 flex items-center justify-between border-b border-[var(--cb-border-subtle)] shrink-0">
+            <div className="flex items-center gap-1.5">
+              <Compass size={13} className="text-[var(--cb-accent)]" />
+              <span className="text-[12px] font-semibold text-[var(--cb-text-primary)]">Pipeline Outline</span>
+            </div>
+            <span className="text-[10px] font-mono text-[var(--cb-text-muted)] px-1.5 py-0.2 rounded bg-white/[0.05]">
+              {canvasBlocks.length} nodes
+            </span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {canvasBlocks.length === 0 ? (
+              <div className="py-12 text-center text-xs text-[var(--cb-text-muted)] space-y-2">
+                <Compass size={24} className="mx-auto text-slate-600" />
+                <p>No blocks on canvas yet.</p>
                 <button
-                  onClick={() => {
-                    if (window.confirm("Clear all blocks from the canvas?")) {
-                      useWorkflowStore.getState().clearWorkflow();
-                    }
-                  }}
-                  className="text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
+                  onClick={() => setActiveSection("library")}
+                  className="px-2.5 py-1 rounded-[var(--cb-radius-control)] bg-[var(--cb-accent)] hover:bg-[var(--cb-accent-hover)] text-white text-[11px] font-medium transition-colors cursor-pointer"
                 >
-                  Clear Playground
+                  Browse Blocks
                 </button>
               </div>
-            </div>
-          )}
+            ) : (
+              canvasBlocks.map((blk) => {
+                const def = blockRegistry.get(blk.definitionId);
+                const isSelected = selectedBlockId === blk.id;
+                return (
+                  <div
+                    key={blk.id}
+                    onClick={() => selectBlock(blk.id)}
+                    className={`px-2.5 py-1.5 rounded-[var(--cb-radius-control)] border transition-all cursor-pointer flex items-center justify-between group ${
+                      isSelected
+                        ? "bg-[var(--cb-accent-subtle)] border-[var(--cb-accent-border)] text-white"
+                        : "bg-white/[0.02] hover:bg-white/[0.06] border-[var(--cb-border-subtle)] text-[var(--cb-text-secondary)]"
+                    }`}
+                  >
+                    <div className="truncate mr-2 flex-1">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                            blk.state === "running"
+                              ? "bg-cyan-400 animate-pulse"
+                              : blk.state === "success"
+                              ? "bg-emerald-400"
+                              : blk.state === "failed"
+                              ? "bg-rose-400"
+                              : "bg-slate-500"
+                          }`}
+                        />
+                        <span className="text-[12px] font-medium text-white truncate">
+                          {blk.label || def?.name || blk.id}
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-mono text-[var(--cb-text-muted)] mt-0.5">
+                        {def?.category || "block"}
+                      </div>
+                    </div>
 
-          {/* ───────────────────────────────────────────────────────────
-              SECTION 2: BLOCK LIBRARIES
-             ─────────────────────────────────────────────────────────── */}
-          {activeSection === "library" && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="p-3 border-b border-white/10 space-y-2.5 bg-white/[0.02] shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <LayersIcon size={13} className="text-emerald-400" />
-                    <span className="text-[11px] font-bold text-white tracking-wider uppercase">
-                      Block libraries
-                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeBlock(blk.id);
+                        if (selectedBlockId === blk.id) selectBlock(null);
+                      }}
+                      className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                      title="Delete block"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION: CUSTOM BLOCKS STUDIO
+         ───────────────────────────────────────────────────────────── */}
+      {activeSection === "custom" && (
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="h-9 px-3 flex items-center justify-between border-b border-[var(--cb-border-subtle)] shrink-0">
+            <div className="flex items-center gap-1.5">
+              <Code2 size={13} className="text-cyan-400" />
+              <span className="text-[12px] font-semibold text-[var(--cb-text-primary)]">Custom Blocks</span>
+            </div>
+            <button
+              onClick={() => openCustomBlockModal(null)}
+              className="h-6 px-2 rounded-[var(--cb-radius-sm)] bg-[var(--cb-accent)] hover:bg-[var(--cb-accent-hover)] text-white text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <Plus size={11} />
+              <span>New</span>
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {customBlocks.length === 0 ? (
+              <div className="py-12 text-center text-xs text-[var(--cb-text-muted)] space-y-2">
+                <Code2 size={24} className="mx-auto text-slate-600" />
+                <p>No custom blocks created yet.</p>
+                <button
+                  onClick={() => openCustomBlockModal(null)}
+                  className="px-2.5 py-1 rounded-[var(--cb-radius-control)] bg-white/10 hover:bg-white/15 text-white text-[11px] font-medium transition-colors cursor-pointer"
+                >
+                  Create Custom Block
+                </button>
+              </div>
+            ) : (
+              customBlocks.map((blk) => (
+                <div
+                  key={blk.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, blk)}
+                  className="p-2 rounded-[var(--cb-radius-control)] bg-white/[0.03] hover:bg-white/[0.07] border border-[var(--cb-border-subtle)] flex items-center justify-between cursor-grab transition-colors group"
+                >
+                  <div className="truncate flex-1 mr-2">
+                    <span className="text-[12px] font-medium text-white">{blk.name}</span>
+                    <p className="text-[10px] text-[var(--cb-text-muted)] truncate">{blk.description}</p>
                   </div>
 
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={expandAll}
-                      className="text-[10px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded hover:bg-white/10 transition-colors cursor-pointer"
-                      title="Expand All Folders"
+                      onClick={() => openCustomBlockModal(blk.id)}
+                      className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer"
+                      title="Edit custom block"
                     >
-                      Expand
+                      <Code2 size={11} />
                     </button>
                     <button
-                      onClick={collapseAll}
-                      className="text-[10px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded hover:bg-white/10 transition-colors cursor-pointer"
-                      title="Collapse All Folders"
+                      onClick={() => deleteCustomBlock(blk.id)}
+                      className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 cursor-pointer"
+                      title="Delete custom block"
                     >
-                      Collapse
-                    </button>
-                    <span className="text-[10px] text-slate-300 font-mono bg-white/[0.06] border border-white/10 px-2 py-0.5 rounded-full font-medium">
-                      {searchedBlocks.length}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Search Box - Text never overlaps the lens icon */}
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center">
-                    <SearchIcon size={13} />
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Search blocks, algorithms, ports..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    style={{ paddingLeft: "36px", paddingRight: "28px" }}
-                    className="cb-input cb-search-input text-xs"
-                  />
-                  {search && (
-                    <button
-                      onClick={() => setSearch("")}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5 cursor-pointer"
-                      title="Clear search"
-                    >
-                      <CloseIcon size={10} />
-                    </button>
-                  )}
-                </div>
-
-                {/* Quick Filter Category Pills - Smooth concrete styling */}
-                <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-[10px] scrollbar-none">
-                  {[
-                    { id: "all", label: "All" },
-                    { id: "data", label: "Data" },
-                    { id: "prep", label: "Prep" },
-                    { id: "ml", label: "ML" },
-                    { id: "eval", label: "Eval" },
-                    { id: "viz", label: "Viz" },
-                    { id: "core", label: "Core" },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveCategoryFilter(tab.id)}
-                      className={`px-2.5 py-1 rounded-full font-medium whitespace-nowrap transition-all text-[10px] cursor-pointer ${
-                        activeCategoryFilter === tab.id
-                          ? "bg-white/15 text-white font-medium border border-white/20"
-                          : "bg-white/[0.04] text-slate-400 hover:text-slate-200 hover:bg-white/10 border border-white/5"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Library Warnings */}
-              {warnings.length > 0 && (
-                <div className="bg-amber-950/40 border-b border-amber-900/60 p-2 space-y-1 shrink-0">
-                  {warnings.map((warn, idx) => (
-                    <div
-                      key={idx}
-                      className="text-[10px] text-amber-300 font-mono flex items-start justify-between gap-1 leading-tight"
-                    >
-                      <div className="flex items-start gap-1">
-                        <AlertTriangleIcon size={11} className="text-amber-400 mt-0.5 shrink-0" />
-                        <span>{warn}</span>
-                      </div>
-                      <button
-                        onClick={() => dismissWarning(idx)}
-                        className="text-amber-400 hover:text-white shrink-0 ml-1 cursor-pointer"
-                      >
-                        <CloseIcon size={10} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Hierarchical Tree Content - Clean & Sleek Glass Styling */}
-              <div className="flex-1 overflow-y-auto p-1.5 space-y-1.5">
-                {visibleGroups.map((group) => {
-                  const isGroupOpen = openNodes.has(group.id);
-                  const groupBlocks = searchedBlocks.filter((b) =>
-                    group.subgroups.some((sub) => sub.match(b))
-                  );
-
-                  if (groupBlocks.length === 0) return null;
-
-                  return (
-                    <div
-                      key={group.id}
-                      className="rounded-md bg-white/[0.02] border border-white/[0.08] overflow-hidden"
-                    >
-                      {/* Category Folder Header */}
-                      <button
-                        onClick={() => toggleNode(group.id)}
-                        className="w-full px-2.5 py-2 flex items-center justify-between bg-white/[0.04] hover:bg-white/[0.08] transition-colors text-left group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="text-slate-400 group-hover:text-slate-200">
-                            {isGroupOpen ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
-                          </span>
-                          <span className="text-[13px] font-semibold tracking-tight text-white truncate">
-                            {group.title}
-                          </span>
-                        </div>
-
-                        <span className="text-[10px] font-mono text-slate-300 bg-white/[0.08] px-2 py-0.5 rounded font-semibold">
-                          {groupBlocks.length}
-                        </span>
-                      </button>
-
-                      {/* Subgroups and Blocks with clean tree guidelines */}
-                      {isGroupOpen && (
-                        <div className="p-1 space-y-1 border-t border-white/[0.08] bg-transparent">
-                          {group.subgroups.map((sub) => {
-                            const subBlocks = searchedBlocks.filter((b) => sub.match(b));
-                            if (subBlocks.length === 0) return null;
-
-                            const isSubOpen = openNodes.has(sub.id) || search.trim().length > 0;
-
-                            return (
-                              <div
-                                key={sub.id}
-                                className="pl-2 border-l border-white/[0.1] ml-1.5 space-y-0.5"
-                              >
-                                {/* Subfolder Header */}
-                                <button
-                                  onClick={() => toggleNode(sub.id)}
-                                  className="w-full flex items-center justify-between py-1 px-1.5 rounded hover:bg-white/[0.06] text-left transition-colors cursor-pointer text-slate-300 hover:text-white"
-                                >
-                                  <div className="flex items-center gap-1.5 truncate">
-                                    <span className="text-slate-400">
-                                      {isSubOpen ? <ChevronDownIcon size={10} /> : <ChevronRightIcon size={10} />}
-                                    </span>
-                                    <span className="text-[12px] font-medium text-slate-200 truncate">{sub.title}</span>
-                                  </div>
-                                  <span className="text-[10px] font-mono text-slate-400 font-medium">
-                                    {subBlocks.length}
-                                  </span>
-                                </button>
-
-                                {/* Leaf Block Items */}
-                                {isSubOpen && (
-                                  <div className="pl-2 border-l border-white/[0.06] ml-1.5 space-y-1 py-0.5">
-                                    {subBlocks.map((block) => (
-                                      <div
-                                        key={block.id}
-                                        draggable
-                                        onDragStart={(e) => handleDragStart(e, block)}
-                                        onMouseEnter={(e) => handleMouseEnterBlock(e, block)}
-                                        onMouseLeave={handleMouseLeaveBlock}
-                                        className="group relative p-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 hover:border-white/25 cursor-grab active:cursor-grabbing transition-all flex items-center justify-between shadow-sm"
-                                      >
-                                        <div className="truncate mr-2 flex-1">
-                                          <div className="flex items-center gap-2">
-                                            <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-cyan-400/80 shadow-sm" />
-                                            <span className="text-[13px] text-slate-100 group-hover:text-white truncate font-semibold">
-                                              {block.name}
-                                            </span>
-                                          </div>
-
-                                          {/* Ports Summary line */}
-                                          <div className="flex items-center gap-1 mt-1 text-[10px] font-mono text-slate-300 truncate">
-                                            <span className="text-slate-400">in:</span>
-                                            {block.inputs.length === 0 ? (
-                                              <span className="text-slate-400">-</span>
-                                            ) : (
-                                              block.inputs.slice(0, 2).map((inp) => (
-                                                <span
-                                                  key={inp.id}
-                                                  className={`px-1.5 py-0.2 rounded border text-[9px] font-medium ${
-                                                    PORT_BADGE_COLORS[inp.type] || "text-slate-300"
-                                                  }`}
-                                                >
-                                                  {inp.type}
-                                                </span>
-                                              ))
-                                            )}
-                                            {block.inputs.length > 2 && <span className="text-slate-400 font-medium">+{block.inputs.length - 2}</span>}
-
-                                            <span className="text-slate-400 ml-1">→</span>
-                                            {block.outputs.length === 0 ? (
-                                              <span className="text-slate-400">-</span>
-                                            ) : (
-                                              block.outputs.slice(0, 2).map((out) => (
-                                                <span
-                                                  key={out.id}
-                                                  className={`px-1.5 py-0.2 rounded border text-[9px] font-medium ${
-                                                    PORT_BADGE_COLORS[out.type] || "text-slate-300"
-                                                  }`}
-                                                >
-                                                  {out.type}
-                                                </span>
-                                              ))
-                                            )}
-                                          </div>
-                                        </div>
-
-                                        {/* Action: Add to canvas */}
-                                        <div className="flex items-center gap-1 shrink-0">
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleAdd(block);
-                                            }}
-                                            className="text-[11px] font-mono px-2.5 py-1 rounded bg-white/[0.08] text-slate-200 border border-white/15 group-hover:bg-emerald-600 group-hover:text-white group-hover:border-emerald-500 transition-colors cursor-pointer font-semibold shadow-sm"
-                                            title="Add block to canvas"
-                                          >
-                                            + Add
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Empty search results */}
-                {searchedBlocks.length === 0 && (
-                  <div className="p-6 text-center text-xs text-slate-500 space-y-1.5">
-                    <SearchIcon size={20} className="mx-auto text-slate-600" />
-                    <div>No blocks found matching "{search}"</div>
-                    <button
-                      onClick={() => {
-                        setSearch("");
-                        setActiveCategoryFilter("all");
-                      }}
-                      className="text-cyan-400 hover:underline text-[11px] cursor-pointer"
-                    >
-                      Clear filters
+                      <Trash2 size={11} />
                     </button>
                   </div>
-                )}
-              </div>
-
-              {/* Footer with Import Library Button */}
-              <div className="p-2 border-t border-white/10 bg-white/[0.02] shrink-0">
-                <button
-                  onClick={() => setIsImportOpen(true)}
-                  className="w-full py-1.5 px-2.5 rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white text-xs font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <FolderIcon size={12} />
-                  <span>Import Library Manifest</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ───────────────────────────────────────────────────────────
-              SECTION 3: CUSTOM BLOCKS
-             ─────────────────────────────────────────────────────────── */}
-          {activeSection === "custom" && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="p-3 border-b border-white/10 space-y-2.5 bg-white/[0.02] shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <CodeIcon size={13} className="text-emerald-400" />
-                    <span className="text-[11px] font-bold text-white tracking-wider uppercase">
-                      Custom blocks
-                    </span>
-                  </div>
-                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-white/[0.06] text-slate-300 border border-white/10">
-                    {customBlocks.length} saved
-                  </span>
                 </div>
-                <p className="text-[10.5px] text-slate-400 leading-tight">
-                  Design, test, and package visual ML blocks with custom Python code.
-                </p>
-
-                {/* Primary Studio Action Buttons - Smooth Concrete styling */}
-                <div className="flex items-center gap-1.5 pt-1">
-                  <button
-                    onClick={() => handleOpenCreateModal(null)}
-                    className="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-700/90 hover:bg-emerald-600 text-white text-[11px] font-medium transition-colors flex items-center justify-center gap-1.5 border border-emerald-600/50 cursor-pointer"
-                  >
-                    <PlusIcon size={11} />
-                    <span>New Block</span>
-                  </button>
-                  <button
-                    onClick={handleQuickImportJson}
-                    className="py-1.5 px-2.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 text-[11px] font-medium transition-colors flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>Import JSON</span>
-                  </button>
-                </div>
-
-                {/* Quick Starter Templates */}
-                <div className="flex items-center gap-1 pt-0.5">
-                  <span className="text-[9px] text-slate-400 font-mono">Starter:</span>
-                  <button
-                    onClick={() => handleOpenCreateModal("transform")}
-                    className="text-[9px] text-slate-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer truncate"
-                  >
-                    + Transform
-                  </button>
-                  <button
-                    onClick={() => handleOpenCreateModal("model")}
-                    className="text-[9px] text-slate-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer truncate"
-                  >
-                    + Classifier
-                  </button>
-                  <button
-                    onClick={() => handleOpenCreateModal("metric")}
-                    className="text-[9px] text-slate-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer truncate"
-                  >
-                    + Metric
-                  </button>
-                </div>
-              </div>
-
-              {/* Custom Blocks List */}
-              <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-                {customBlocks.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-slate-500 space-y-2">
-                    <CodeIcon size={24} className="mx-auto text-slate-600" />
-                    <div>No custom blocks created yet.</div>
-                    <p className="text-[11px] text-slate-400 max-w-[200px] mx-auto leading-relaxed">
-                      Write your own scikit-learn transformers, PyTorch models, or custom evaluation routines in Python.
-                    </p>
-                    <button
-                      onClick={() => handleOpenCreateModal(null)}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium transition-colors inline-flex items-center gap-1.5 cursor-pointer mt-1 border border-emerald-600/50"
-                    >
-                      <PlusIcon size={12} />
-                      <span>Create Your First Block</span>
-                    </button>
-                  </div>
-                ) : (
-                  customBlocks.map((block) => (
-                    <div
-                      key={block.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, block)}
-                      onMouseEnter={(e) => handleMouseEnterBlock(e, block)}
-                      onMouseLeave={handleMouseLeaveBlock}
-                      className="p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.08] hover:border-white/20 transition-all flex items-center justify-between group"
-                    >
-                      <div className="truncate mr-2 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                          <span className="text-xs text-slate-200 group-hover:text-white font-medium truncate">
-                            {block.name}
-                          </span>
-                          <span className="text-[8px] px-1 py-0.2 rounded bg-white/[0.06] text-slate-300 border border-white/10 font-mono">
-                            Python
-                          </span>
-                        </div>
-                        <div className="text-[9px] font-mono text-slate-500 truncate mt-0.5">
-                          {block.id}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={() => handleAdd(block)}
-                          className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/[0.04] text-slate-300 border border-white/10 hover:bg-emerald-700 hover:text-white hover:border-emerald-600 transition-colors cursor-pointer font-medium"
-                          title="Add to canvas"
-                        >
-                          + Add
-                        </button>
-                        <button
-                          onClick={() => handleEditCustomBlock(block.id)}
-                          className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-                          title="Edit Python code & ports"
-                        >
-                          <EditIcon size={11} />
-                        </button>
-                        <button
-                          onClick={() => handleExportCustomBlock(block.id)}
-                          className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-                          title="Export JSON definition"
-                        >
-                          <ShareIcon size={11} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCustomBlock(block.id)}
-                          className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-950/60 transition-colors"
-                          title="Delete custom block"
-                        >
-                          <TrashIcon size={11} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ───────────────────────────────────────────────────────────
-              SECTION 4: TEMPLATES
-             ─────────────────────────────────────────────────────────── */}
-          {activeSection === "templates" && (
-            <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="p-3 border-b border-white/10 space-y-2.5 bg-white/[0.02] shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <LayoutTemplateIcon size={13} className="text-emerald-400" />
-                    <span className="text-[11px] font-bold text-white tracking-wider uppercase">
-                      Templates
-                    </span>
-                  </div>
-                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-white/[0.06] text-slate-300 border border-white/10">
-                    {PIPELINE_TEMPLATES.length} blueprints
-                  </span>
-                </div>
-                <p className="text-[10.5px] text-slate-400 leading-tight">
-                  One-click verified visual ML pipelines ready to run and customize.
-                </p>
-
-                {/* Template Category Filters - Smooth concrete styling */}
-                <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-[10px] scrollbar-none">
-                  {[
-                    { id: "all", label: "All" },
-                    { id: "classification", label: "Classification" },
-                    { id: "regression", label: "Regression" },
-                    { id: "clustering", label: "Clustering" },
-                    { id: "preprocessing", label: "Preprocessing" },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setTemplateFilter(tab.id)}
-                      className={`px-2.5 py-1 rounded-full font-medium whitespace-nowrap transition-all text-[10px] cursor-pointer ${
-                        templateFilter === tab.id
-                          ? "bg-white/15 text-white font-medium border border-white/20"
-                          : "bg-white/[0.04] text-slate-400 hover:text-slate-200 hover:bg-white/10 border border-white/5"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Blueprints Cards Grid */}
-              <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {filteredTemplates.map((tpl) => (
-                  <div
-                    key={tpl.id}
-                    className="p-3 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-white/20 transition-all space-y-2 group shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-semibold text-xs text-white group-hover:text-emerald-300 transition-colors">
-                          {tpl.title}
-                        </div>
-                        <div className="text-[9px] font-mono text-slate-500 mt-0.5">
-                          {tpl.nodeCount} nodes • {tpl.edgeCount} connections
-                        </div>
-                      </div>
-                    </div>
-
-                    <p className="text-[10.5px] text-slate-400 leading-relaxed">
-                      {tpl.description}
-                    </p>
-
-                    {/* Tags */}
-                    <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                      {tpl.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-[8.5px] font-mono px-1.5 py-0.2 rounded bg-white/[0.04] text-slate-400 border border-white/5"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Load Blueprint CTA - Smooth concrete button */}
-                    <div className="pt-1 border-t border-white/5 flex items-center justify-end">
-                      <button
-                        onClick={() => handleLoadTemplate(tpl)}
-                        className="py-1 px-3 rounded-lg bg-emerald-700/90 hover:bg-emerald-600 text-white text-[10.5px] font-medium transition-colors flex items-center gap-1.5 border border-emerald-600/40 cursor-pointer"
-                      >
-                        <PlusIcon size={11} />
-                        <span>Load Blueprint</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* ─── Compact Hover Details Tooltip (For Library / Custom Blocks) ─── */}
-      {hoveredBlock && hoverPosition && (
-        <div
-          style={{
-            top: Math.max(12, Math.min(hoverPosition.top, window.innerHeight - 195)),
-            left: Math.min(hoverPosition.left, window.innerWidth - 300),
-          }}
-          className="fixed z-50 w-72 bg-[#0c101d]/98 backdrop-blur-2xl border border-white/20 rounded-xl p-3 shadow-2xl text-xs text-slate-200 pointer-events-none animate-in fade-in zoom-in-95 duration-100 space-y-2"
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between gap-1.5 pb-1.5 border-b border-white/10">
-            <span className="font-bold text-white text-[12.5px] truncate">
-              {hoveredBlock.name}
-            </span>
-            <span
-              className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full border font-semibold uppercase ${
-                hoveredBlock.category === "evaluation" ||
-                hoveredBlock.category === "visualization" ||
-                hoveredBlock.category === "core"
-                  ? "bg-rose-950/70 text-rose-300 border-rose-800/60"
-                  : "bg-emerald-950/70 text-emerald-300 border-emerald-800/60"
-              }`}
-            >
-              {hoveredBlock.category}
-            </span>
+              ))
+            )}
           </div>
-
-          {/* Concise 1-2 sentence description */}
-          <p className="text-[11px] text-slate-200 leading-relaxed font-sans line-clamp-3">
-            {hoveredBlock.description}
-          </p>
-
-          {/* Compact Ports I/O flow */}
-          <div className="text-[10px] font-mono text-slate-300 flex items-center gap-1.5 pt-1.5 border-t border-white/10 truncate">
-            <span className="text-slate-400 font-semibold">I/O:</span>
-            <span className="text-cyan-300 truncate max-w-[100px] font-medium">
-              {hoveredBlock.inputs.length === 0
-                ? "none"
-                : hoveredBlock.inputs.map((i) => i.type).join(", ")}
-            </span>
-            <span className="text-slate-400 font-bold">→</span>
-            <span className="text-emerald-300 truncate max-w-[100px] font-medium">
-              {hoveredBlock.outputs.length === 0
-                ? "none"
-                : hoveredBlock.outputs.map((o) => o.type).join(", ")}
-            </span>
-          </div>
-
-          {/* Configurable Parameters Brief */}
-          {hoveredBlock.configSchema && Object.keys(hoveredBlock.configSchema).length > 0 && (
-            <div className="text-[10px] font-mono text-slate-300 flex items-center justify-between pt-0.5">
-              <span className="text-slate-400 font-medium">Parameters:</span>
-              <span className="text-emerald-300 font-semibold">
-                {Object.keys(hoveredBlock.configSchema).length} configurable
-              </span>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Custom Block Modal */}
-      <CustomBlockModal
-        isOpen={isCustomModalOpen}
-        onClose={() => {
-          setIsCustomModalOpen(false);
-          setEditingBlockId(null);
-          setModalTemplate(null);
-        }}
-        editBlockId={editingBlockId}
-        initialTemplate={modalTemplate}
-      />
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION: BLUEPRINT TEMPLATES
+         ───────────────────────────────────────────────────────────── */}
+      {activeSection === "templates" && (
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="h-9 px-3 flex items-center justify-between border-b border-[var(--cb-border-subtle)] shrink-0">
+            <div className="flex items-center gap-1.5">
+              <Sparkles size={13} className="text-amber-400" />
+              <span className="text-[12px] font-semibold text-[var(--cb-text-primary)]">Blueprints</span>
+            </div>
+            <span className="text-[10px] font-mono text-[var(--cb-text-muted)] px-1.5 py-0.2 rounded bg-white/[0.05]">
+              {PIPELINE_TEMPLATES.length}
+            </span>
+          </div>
 
-      {/* Import Library Dialog Modal */}
-      <ImportLibraryDialog
-        isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
-      />
-    </>
+          <div className="flex-1 overflow-y-auto p-2 space-y-2">
+            {PIPELINE_TEMPLATES.map((tpl) => (
+              <div
+                key={tpl.id}
+                onClick={() => handleLoadTemplate(tpl)}
+                className="p-2.5 rounded-[var(--cb-radius-control)] bg-white/[0.03] hover:bg-white/[0.08] border border-[var(--cb-border-subtle)] hover:border-[var(--cb-accent-border)] transition-all cursor-pointer group"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[12px] font-semibold text-white group-hover:text-[var(--cb-accent)] transition-colors">
+                    {tpl.title}
+                  </span>
+                  <span className="text-[10px] font-mono text-[var(--cb-text-muted)]">
+                    {tpl.nodeCount} nodes
+                  </span>
+                </div>
+                <p className="text-[11px] text-[var(--cb-text-muted)] line-clamp-2">
+                  {tpl.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Hover Preview Popover ─── */}
+      {hoveredBlock && (
+        <div
+          style={{
+            top: Math.max(8, Math.min(window.innerHeight - 240, hoveredBlock.rect.top)),
+            left: hoveredBlock.rect.right + 12,
+          }}
+          className="fixed z-50 w-64 p-3 bg-[var(--cb-elevation-overlay)] border border-[var(--cb-border-strong)] rounded-[var(--cb-radius-panel)] shadow-[var(--cb-shadow-overlay)] text-[12px] pointer-events-none animate-in fade-in zoom-in-95 duration-100"
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-semibold text-white text-[13px]">{hoveredBlock.block.name}</span>
+            <span className="text-[9.5px] uppercase font-mono px-1.5 py-0.2 rounded bg-white/10 text-slate-300">
+              {hoveredBlock.block.category}
+            </span>
+          </div>
+
+          <p className="text-[11px] text-[var(--cb-text-secondary)] leading-relaxed mb-2.5">
+            {hoveredBlock.block.description || "No description provided."}
+          </p>
+
+          <div className="space-y-1.5 pt-1 border-t border-[var(--cb-border-subtle)] text-[10.5px]">
+            {hoveredBlock.block.inputs.length > 0 && (
+              <div>
+                <span className="text-[var(--cb-text-muted)] uppercase tracking-wider text-[9px] font-mono">Inputs:</span>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {hoveredBlock.block.inputs.map((inp) => (
+                    <span key={inp.id} className="px-1.5 py-0.2 rounded bg-white/5 border border-white/10 font-mono text-[9.5px] text-cyan-300">
+                      {inp.name} ({inp.type})
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {hoveredBlock.block.outputs.length > 0 && (
+              <div>
+                <span className="text-[var(--cb-text-muted)] uppercase tracking-wider text-[9px] font-mono">Outputs:</span>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {hoveredBlock.block.outputs.map((out) => (
+                    <span key={out.id} className="px-1.5 py-0.2 rounded bg-white/5 border border-white/10 font-mono text-[9.5px] text-emerald-300">
+                      {out.name} ({out.type})
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-2 text-[9.5px] font-mono text-[var(--cb-text-muted)] italic">
+            Drag to canvas or click to insert
+          </div>
+        </div>
+      )}
+
+      {/* Dialog Modals */}
+      {isImportLibraryOpen && (
+        <ImportLibraryDialog
+          isOpen={isImportLibraryOpen}
+          onClose={() => setIsImportLibraryOpen(false)}
+        />
+      )}
+
+      {isCustomBlockModalOpen && (
+        <CustomBlockModal
+          isOpen={isCustomBlockModalOpen}
+          onClose={closeCustomBlockModal}
+          editBlockId={editCustomBlockId}
+        />
+      )}
+    </aside>
   );
 }

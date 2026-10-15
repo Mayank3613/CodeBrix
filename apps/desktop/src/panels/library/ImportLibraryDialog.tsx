@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { isValidLibraryManifest } from "@codebrix/shared";
 import type { LibraryManifest } from "@codebrix/types";
 import { importLibraryManifest } from "../../registry/libraryLoader";
@@ -111,43 +112,65 @@ export default function ImportLibraryDialog({ isOpen, onClose }: ImportLibraryDi
     }, 900);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl max-w-lg w-full flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-[4px] flex items-center justify-center p-4 animate-in fade-in duration-150"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-[var(--cb-elevation-panel)] border border-[var(--cb-border-strong)] rounded-[var(--cb-radius-panel)] shadow-[var(--cb-shadow-overlay)] max-w-lg w-full flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-5 py-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-5 py-3.5 bg-[var(--cb-elevation-raised)] border-b border-[var(--cb-border-subtle)] flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse" />
-            <h2 className="text-sm font-semibold text-slate-100 uppercase tracking-wide">
+            <span className="w-2 h-2 rounded-full bg-[var(--cb-accent)]" />
+            <h2 className="text-[13px] font-semibold text-[var(--cb-text-primary)]">
               Import Block Library
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800/50 hover:bg-slate-800 transition-colors"
+            className="w-7 h-7 rounded-[var(--cb-radius-control)] text-[var(--cb-text-muted)] hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors cursor-pointer"
+            aria-label="Close dialog"
           >
             ×
           </button>
         </div>
 
         {/* Tab switcher */}
-        <div className="flex border-b border-slate-800 bg-slate-950/40 px-5 pt-2">
+        <div className="flex border-b border-[var(--cb-border-subtle)] bg-[var(--cb-elevation-raised)] px-5 pt-1">
           <button
             onClick={() => setActiveTab("file")}
-            className={`pb-2 px-3 text-xs font-medium border-b-2 transition-all ${
+            className={`pb-2 px-3 text-[12px] font-medium border-b-2 transition-all cursor-pointer ${
               activeTab === "file"
-                ? "border-indigo-500 text-indigo-300"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-[var(--cb-accent)] text-[var(--cb-accent)] font-semibold"
+                : "border-transparent text-[var(--cb-text-secondary)] hover:text-white"
             }`}
           >
             From File / Directory
           </button>
           <button
             onClick={() => setActiveTab("json")}
-            className={`pb-2 px-3 text-xs font-medium border-b-2 transition-all ${
+            className={`pb-2 px-3 text-[12px] font-medium border-b-2 transition-all cursor-pointer ${
               activeTab === "json"
-                ? "border-indigo-500 text-indigo-300"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-[var(--cb-accent)] text-[var(--cb-accent)] font-semibold"
+                : "border-transparent text-[var(--cb-text-secondary)] hover:text-white"
             }`}
           >
             Manifest JSON Editor
@@ -260,22 +283,23 @@ export default function ImportLibraryDialog({ isOpen, onClose }: ImportLibraryDi
         </div>
 
         {/* Footer actions */}
-        <div className="px-5 py-3.5 bg-slate-950/90 border-t border-slate-800 flex items-center justify-end gap-2.5">
+        <div className="px-5 py-3.5 bg-[var(--cb-elevation-raised)] border-t border-[var(--cb-border-subtle)] flex items-center justify-end gap-2.5">
           <button
             onClick={onClose}
-            className="px-3.5 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-all"
+            className="h-7 px-3 rounded-[var(--cb-radius-control)] border border-[var(--cb-border-subtle)] text-[var(--cb-text-secondary)] hover:text-white hover:bg-white/10 text-[12px] font-medium transition-all cursor-pointer"
           >
             Cancel
           </button>
           <button
             onClick={handleConfirmImport}
             disabled={!parsedManifest.isValid}
-            className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium transition-all shadow-lg shadow-indigo-600/20"
+            className="h-7 px-4 rounded-[var(--cb-radius-control)] bg-[var(--cb-accent)] hover:bg-[var(--cb-accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[12px] font-medium transition-all shadow-sm cursor-pointer"
           >
             Import & Register
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

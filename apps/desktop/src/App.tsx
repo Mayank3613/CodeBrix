@@ -1,11 +1,15 @@
-import { useEffect, useCallback } from "react";
-import Toolbar from "./components/layout/Toolbar";
+import { useEffect, useCallback, useState } from "react";
+import Header from "./components/layout/Header";
+import LeftRail from "./components/layout/LeftRail";
+import StatusBar from "./components/layout/StatusBar";
 import Palette from "./palette/Palette";
 import Canvas from "./canvas/Canvas";
 import PropertiesPanel from "./panels/properties/PropertiesPanel";
-import ValidationPanel from "./panels/validation/ValidationPanel";
 import OutputPanel from "./panels/output/OutputPanel";
 import ResizeHandle from "./components/layout/ResizeHandle";
+import CommandPalette from "./components/common/CommandPalette";
+import ShortcutsDialog from "./components/common/ShortcutsDialog";
+import { Toaster } from "sonner";
 import { bootstrapDefaultBlocks } from "./registry";
 import { useUiStore } from "./stores";
 
@@ -21,8 +25,29 @@ export default function App() {
   const outputPanelHeight = useUiStore((s) => s.outputPanelHeight);
   const setOutputPanelHeight = useUiStore((s) => s.setOutputPanelHeight);
 
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+
   useEffect(() => {
     bootstrapDefaultBlocks();
+  }, []);
+
+  // Global keyboard shortcuts for Command Palette (Cmd+K) and Shortcuts Dialog (?)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      } else if (
+        e.key === "?" &&
+        !["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)
+      ) {
+        e.preventDefault();
+        setIsShortcutsOpen((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   // Palette resize: dragging right handle changes palette width
@@ -69,56 +94,85 @@ export default function App() {
   if (!isOutputOpen) shellClass += " cb-shell--output-closed";
 
   return (
-    <main className={shellClass} style={shellStyle}>
-      {/* ─── Topbar: Unified IDE Toolbar & Validation Status ─── */}
-      <div className="cb-topbar flex flex-col shrink-0 overflow-visible z-40">
-        <Toolbar />
-        <ValidationPanel />
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[var(--cb-elevation-app)] font-sans antialiased text-[var(--cb-text-primary)]">
+      {/* ─── Topbar: Merged Window Header & Controls ─── */}
+      <Header />
+
+      {/* ─── Main Middle: Left Rail Activity Bar + Workbench Shell ─── */}
+      <div className="flex-1 flex min-h-0 min-w-0 relative overflow-hidden">
+        {/* VS Code / Figma Style Activity Rail */}
+        <LeftRail onOpenShortcuts={() => setIsShortcutsOpen(true)} />
+
+        {/* Resizable 3-Column + Bottom Drawer Grid */}
+        <main className={shellClass} style={shellStyle}>
+          {/* Left Panel: Block Palette & Trees */}
+          {isPaletteOpen && (
+            <section className="cb-palette cb-panel-frame overflow-hidden relative z-20">
+              <Palette />
+              <ResizeHandle
+                direction="horizontal"
+                side="right"
+                onResize={handlePaletteResize}
+              />
+            </section>
+          )}
+
+          {/* Center-Top: React Flow Visual Canvas */}
+          <section className="cb-canvas cb-panel-frame overflow-hidden relative z-10" style={{ minWidth: 0, minHeight: 0 }}>
+            <Canvas />
+          </section>
+
+          {/* Right Panel: Properties & Pipeline Overview Inspector */}
+          {isPropertiesOpen && (
+            <section className="cb-properties cb-panel-frame overflow-hidden relative z-20">
+              <ResizeHandle
+                direction="horizontal"
+                side="left"
+                onResize={handlePropertiesResize}
+              />
+              <PropertiesPanel />
+            </section>
+          )}
+
+          {/* Center-Bottom: Terminal / Output Notebook */}
+          {isOutputOpen && (
+            <section
+              className="cb-output cb-panel-frame overflow-hidden relative z-20"
+              style={{ minWidth: 0, minHeight: 0 }}
+            >
+              <ResizeHandle
+                direction="vertical"
+                side="top"
+                onResize={handleOutputResize}
+              />
+              <OutputPanel />
+            </section>
+          )}
+        </main>
       </div>
 
-      {/* ─── Left Bento Cell: Block Palette ─── */}
-      {isPaletteOpen && (
-        <section className="cb-palette cb-bento-frame overflow-hidden relative z-20">
-          <Palette />
-          <ResizeHandle
-            direction="horizontal"
-            side="right"
-            onResize={handlePaletteResize}
-          />
-        </section>
-      )}
+      {/* ─── Bottom Status Bar (24px) ─── */}
+      <StatusBar />
 
-      {/* ─── Center-Top Bento Cell: React Flow Canvas ─── */}
-      <section className="cb-canvas cb-bento-frame overflow-hidden relative z-10" style={{ minWidth: 0, minHeight: 0 }}>
-        <Canvas />
-      </section>
+      {/* ─── Global Modals & Notifications ─── */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
+      />
 
-      {/* ─── Right Bento Cell: Properties Panel ─── */}
-      {isPropertiesOpen && (
-        <section className="cb-properties cb-bento-frame overflow-hidden relative z-20">
-          <ResizeHandle
-            direction="horizontal"
-            side="left"
-            onResize={handlePropertiesResize}
-          />
-          <PropertiesPanel />
-        </section>
-      )}
+      <ShortcutsDialog
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
+      />
 
-      {/* ─── Center-Bottom Bento Cell: Terminal / Output Notebook ─── */}
-      {isOutputOpen && (
-        <section
-          className="cb-output cb-bento-frame overflow-hidden relative z-20"
-          style={{ minWidth: 0, minHeight: 0 }}
-        >
-          <ResizeHandle
-            direction="vertical"
-            side="top"
-            onResize={handleOutputResize}
-          />
-          <OutputPanel />
-        </section>
-      )}
-    </main>
+      <Toaster
+        theme="dark"
+        position="bottom-right"
+        toastOptions={{
+          className: "!bg-[var(--cb-elevation-overlay)] !text-[var(--cb-text-primary)] !border-[var(--cb-border-strong)] font-sans text-xs",
+        }}
+      />
+    </div>
   );
 }

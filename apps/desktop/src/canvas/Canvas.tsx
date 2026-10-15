@@ -1,21 +1,33 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
   Background,
-  Controls,
   MiniMap,
   type Connection as FlowConnection,
   type EdgeChange,
   type NodeChange,
+  type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { BlockNode } from "./BlockNode";
 import { toReactFlowGraph, type BlockNodeData } from "./adapter";
-import { useWorkflowStore, useUiStore } from "../stores";
+import { useWorkflowStore, useUiStore, useExecutionStore, useProjectStore } from "../stores";
 import { blockRegistry } from "../registry";
-import { CheckIcon, CloseIcon, SparklesIcon } from "../components/common/Icons";
+import { openProjectFileDialog, parseCbxProject } from "../project";
+import {
+  Boxes,
+  Sparkles,
+  FileUp,
+  Plus,
+  Minus,
+  Maximize2,
+  Check,
+  X,
+  LayoutGrid,
+} from "lucide-react";
+import Tooltip from "../components/common/Tooltip";
 
 const nodeTypes = {
   blockNode: BlockNode,
@@ -33,8 +45,9 @@ function isInputElement(el: Element | null): boolean {
 }
 
 function CanvasContent() {
-  const { screenToFlowPosition, setCenter, fitView } = useReactFlow();
+  const { screenToFlowPosition, setCenter, fitView, zoomIn, zoomOut } = useReactFlow();
   const graph = useWorkflowStore((s) => s.graph);
+  const setGraph = useWorkflowStore((s) => s.setGraph);
   const updateBlockPosition = useWorkflowStore((s) => s.updateBlockPosition);
   const recordHistory = useWorkflowStore((s) => s.recordHistory);
   const addBlock = useWorkflowStore((s) => s.addBlock);
@@ -47,86 +60,88 @@ function CanvasContent() {
   const selectedBlockId = useUiStore((s) => s.selectedBlockId);
   const selectBlock = useUiStore((s) => s.selectBlock);
   const focusTarget = useUiStore((s) => s.focusTarget);
+  const setZoomLevel = useUiStore((s) => s.setZoomLevel);
+  const runState = useExecutionStore((s) => s.runState);
+  const setProjectName = useProjectStore((s) => s.setProjectName);
+  const markDirty = useProjectStore((s) => s.markDirty);
 
-  // Dedicated selection state for connections (edges)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [currentZoom, setCurrentZoom] = useState(1);
+  const [connectionFeedback, setConnectionFeedback] = useState<{
+    message: string;
+    type: "valid" | "error";
+  } | null>(null);
 
-  // Allow the user to dismiss the blank-playground empty-state overlay
-  const [emptyStateDismissed, setEmptyStateDismissed] = useState(false);
   const blockCount = Object.keys(graph.blocks).length;
+  const isRunning = runState === "running";
 
-  // Re-show the empty state when all blocks are removed (e.g. Reset)
-  useEffect(() => {
-    if (blockCount === 0) {
-      setEmptyStateDismissed(false);
-    }
-  }, [blockCount]);
-
-  // Automatically fit nodes within canvas bounds when a graph or template is loaded
+  // Fit view on load or when template changes
   const blockKeys = useMemo(
     () => Object.keys(graph.blocks).sort().join(","),
     [graph.blocks]
   );
 
   useEffect(() => {
-    if (Object.keys(graph.blocks).length === 0) return;
-    const t1 = setTimeout(() => {
-      fitView({ duration: 400, padding: 0.2 });
-    }, 80);
-    const t2 = setTimeout(() => {
-      fitView({ duration: 400, padding: 0.2 });
-    }, 280);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [graph.id, blockKeys, fitView]);
+    if (blockCount === 0) return;
+    const t = setTimeout(() => {
+      fitView({ duration: 300, padding: 0.2 });
+    }, 100);
+    return () => clearTimeout(t);
+  }, [graph.id, blockKeys, fitView, blockCount]);
 
-  // Listen to codebrix:fit-view event (e.g. after Format or Reset)
+  // Fit view custom event
   useEffect(() => {
-    const handleFitView = () => {
-      setTimeout(() => {
-        fitView({ duration: 500, padding: 0.2 });
-      }, 80);
-      setTimeout(() => {
-        fitView({ duration: 500, padding: 0.2 });
-      }, 280);
+    const handleFit = () => {
+      setTimeout(() => fitView({ duration: 400, padding: 0.2 }), 80);
     };
-    window.addEventListener("codebrix:fit-view", handleFitView);
-    return () => window.removeEventListener("codebrix:fit-view", handleFitView);
+    window.addEventListener("codebrix:fit-view", handleFit);
+    return () => window.removeEventListener("codebrix:fit-view", handleFit);
   }, [fitView]);
 
-  // Smoothly center the canvas on a focused block (e.g. from validation error click)
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // ResizeObserver: auto fit-view against visible canvas bounds when panels resize or toggle
+  useEffect(() => {
+    if (!containerRef.current) return;
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const observer = new ResizeObserver(() => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        fitView({ padding: 0.2, duration: 150 });
+      }, 50);
+    });
+    observer.observe(containerRef.current);
+    return () => {
+      observer.disconnect();
+      if (resizeTimer) clearTimeout(resizeTimer);
+    };
+  }, [fitView]);
+
+  // Focus block on validation click
   useEffect(() => {
     if (focusTarget && focusTarget.blockId) {
       const block = graph.blocks[focusTarget.blockId];
       if (block) {
         setCenter(block.position.x + 110, block.position.y + 70, {
           zoom: 1.15,
-          duration: 600,
+          duration: 500,
         });
       }
     }
   }, [focusTarget, graph, setCenter]);
 
-  // Global Keyboard Shortcuts: Ctrl+Z (Undo), Ctrl+Y / Ctrl+Shift+Z (Redo), Delete / Backspace
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept shortcuts when editing text inputs / textareas
-      if (isInputElement(document.activeElement)) {
-        return;
-      }
-
+      if (isInputElement(document.activeElement)) return;
       const isModifier = e.ctrlKey || e.metaKey;
 
-      // Ctrl + Z: Undo
       if (isModifier && !e.shiftKey && (e.key === "z" || e.key === "Z")) {
         e.preventDefault();
         undo();
         return;
       }
 
-      // Ctrl + Y or Ctrl + Shift + Z: Redo
       if (
         (isModifier && e.shiftKey && (e.key === "z" || e.key === "Z")) ||
         (isModifier && (e.key === "y" || e.key === "Y"))
@@ -136,17 +151,11 @@ function CanvasContent() {
         return;
       }
 
-      // Delete or Backspace: Explicitly handle edge vs block deletion
       if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedEdgeId) {
           e.preventDefault();
           removeConnection(selectedEdgeId);
           setSelectedEdgeId(null);
-          setConnectionFeedback({
-            message: "Connection deleted",
-            type: "valid",
-          });
-          setTimeout(() => setConnectionFeedback(null), 2000);
           return;
         }
 
@@ -163,14 +172,7 @@ function CanvasContent() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [undo, redo, selectedEdgeId, selectedBlockId, removeConnection, removeBlock, selectBlock]);
 
-  // Connection feedback state
-  const [connectionFeedback, setConnectionFeedback] = useState<{
-    message: string;
-    type: "valid" | "error";
-  } | null>(null);
-
-  // Derive React Flow nodes and edges via adapter
-  // Mutual exclusivity: If an edge is selected, NO block node is ever marked as selected!
+  // Derive React Flow nodes and edges with smooth-step & running animation
   const { nodes, edges } = useMemo(() => {
     const flowGraph = toReactFlowGraph(graph);
     const mappedNodes = flowGraph.nodes.map((n) => ({
@@ -179,10 +181,13 @@ function CanvasContent() {
     }));
     const mappedEdges = flowGraph.edges.map((e) => ({
       ...e,
+      type: "smoothstep",
+      animated: isRunning,
       selected: e.id === selectedEdgeId,
+      pathOptions: { offset: 24, borderRadius: 12 },
     }));
     return { nodes: mappedNodes, edges: mappedEdges };
-  }, [graph, selectedBlockId, selectedEdgeId]);
+  }, [graph, selectedBlockId, selectedEdgeId, isRunning]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange<import("@xyflow/react").Node<BlockNodeData>>[]) => {
@@ -190,11 +195,8 @@ function CanvasContent() {
         if (change.type === "position" && change.position) {
           updateBlockPosition(change.id, change.position);
         } else if (change.type === "remove") {
-          // Only remove if this node was actually the target
           removeBlock(change.id);
-          if (selectedBlockId === change.id) {
-            selectBlock(null);
-          }
+          if (selectedBlockId === change.id) selectBlock(null);
         } else if (change.type === "select") {
           if (change.selected) {
             selectBlock(change.id);
@@ -213,9 +215,7 @@ function CanvasContent() {
       for (const change of changes) {
         if (change.type === "remove") {
           removeConnection(change.id);
-          if (selectedEdgeId === change.id) {
-            setSelectedEdgeId(null);
-          }
+          if (selectedEdgeId === change.id) setSelectedEdgeId(null);
         } else if (change.type === "select") {
           if (change.selected) {
             setSelectedEdgeId(change.id);
@@ -229,15 +229,8 @@ function CanvasContent() {
     [removeConnection, selectBlock, selectedEdgeId]
   );
 
-  // Selection change synchronization
   const onSelectionChange = useCallback(
-    ({
-      nodes: selNodes,
-      edges: selEdges,
-    }: {
-      nodes: import("@xyflow/react").Node[];
-      edges: import("@xyflow/react").Edge[];
-    }) => {
+    ({ nodes: selNodes, edges: selEdges }: { nodes: any[]; edges: any[] }) => {
       if (selEdges.length > 0) {
         setSelectedEdgeId(selEdges[0].id);
         selectBlock(null);
@@ -251,202 +244,138 @@ function CanvasContent() {
     [selectBlock]
   );
 
-  const onEdgeClick = useCallback(
-    (_event: React.MouseEvent, edge: import("@xyflow/react").Edge) => {
-      // Immediately clear block selection so only the edge is selected
-      setSelectedEdgeId(edge.id);
-      selectBlock(null);
-      setConnectionFeedback({
-        message: "Connection selected. Press Del/Backspace to remove, or double-click to delete.",
-        type: "valid",
-      });
-      setTimeout(() => setConnectionFeedback(null), 3000);
-    },
-    [selectBlock]
-  );
+  const onEdgeClick = useCallback((_e: any, edge: any) => {
+    setSelectedEdgeId(edge.id);
+    selectBlock(null);
+  }, [selectBlock]);
 
-  const onEdgeDoubleClick = useCallback(
-    (_event: React.MouseEvent, edge: import("@xyflow/react").Edge) => {
-      removeConnection(edge.id);
-      setSelectedEdgeId(null);
-      setConnectionFeedback({
-        message: "Connection removed",
-        type: "valid",
-      });
-      setTimeout(() => setConnectionFeedback(null), 2000);
-    },
-    [removeConnection]
-  );
-
-  const onEdgeContextMenu = useCallback(
-    (event: React.MouseEvent, edge: import("@xyflow/react").Edge) => {
-      event.preventDefault();
-      removeConnection(edge.id);
-      setSelectedEdgeId(null);
-      setConnectionFeedback({
-        message: "Connection deleted",
-        type: "valid",
-      });
-      setTimeout(() => setConnectionFeedback(null), 2000);
-    },
-    [removeConnection]
-  );
-
-  // Type compatibility check
   const isValidConnection = useCallback(
     (connection: FlowConnection | import("@xyflow/react").Edge): boolean => {
-      const sourceInstance = graph.blocks[connection.source];
-      const targetInstance = graph.blocks[connection.target];
+      if (!connection.source || !connection.target) return false;
+      if (connection.source === connection.target) return false;
 
-      if (!sourceInstance || !targetInstance) return false;
+      const sourceBlock = graph.blocks[connection.source];
+      const targetBlock = graph.blocks[connection.target];
+      if (!sourceBlock || !targetBlock) return false;
 
-      const sourceDef = blockRegistry.get(sourceInstance.definitionId);
-      const targetDef = blockRegistry.get(targetInstance.definitionId);
-
+      const sourceDef = blockRegistry.get(sourceBlock.definitionId);
+      const targetDef = blockRegistry.get(targetBlock.definitionId);
       if (!sourceDef || !targetDef) return false;
 
       const sourcePort = sourceDef.outputs.find((p) => p.id === connection.sourceHandle);
       const targetPort = targetDef.inputs.find((p) => p.id === connection.targetHandle);
-
       if (!sourcePort || !targetPort) return false;
 
-      const compatible = blockRegistry.checkPortCompatibility(
-        sourcePort.type,
-        targetPort.type
-      );
+      if (targetPort.type === "any" || sourcePort.type === "any") return true;
+      if (targetPort.type === sourcePort.type) return true;
+      if (
+        (sourcePort.type === "dataframe" && targetPort.type === "dataset") ||
+        (sourcePort.type === "dataset" && targetPort.type === "dataframe")
+      ) return true;
 
-      if (!compatible) {
-        setConnectionFeedback({
-          message: `Incompatible: Cannot connect '${sourcePort.type}' output to '${targetPort.type}' input`,
-          type: "error",
-        });
-      } else {
-        setConnectionFeedback({
-          message: `Compatible connection: '${sourcePort.type}' → '${targetPort.type}'`,
-          type: "valid",
-        });
-      }
-
-      return compatible;
+      return false;
     },
-    [graph]
+    [graph.blocks]
   );
 
   const onConnect = useCallback(
-    (params: FlowConnection) => {
-      if (!params.source || !params.target) return;
-
-      const sourceInstance = graph.blocks[params.source];
-      const targetInstance = graph.blocks[params.target];
-      if (!sourceInstance || !targetInstance) return;
-
-      const sourceDef = blockRegistry.get(sourceInstance.definitionId);
-      const targetDef = blockRegistry.get(targetInstance.definitionId);
-      if (!sourceDef || !targetDef) return;
-
-      const sourcePort = sourceDef.outputs.find((p) => p.id === params.sourceHandle);
-      const targetPort = targetDef.inputs.find((p) => p.id === params.targetHandle);
-      if (!sourcePort || !targetPort) return;
-
-      if (!blockRegistry.checkPortCompatibility(sourcePort.type, targetPort.type)) {
+    (connection: FlowConnection) => {
+      if (!connection.source || !connection.target) return;
+      const valid = isValidConnection(connection);
+      if (!valid) {
+        setConnectionFeedback({
+          message: "Incompatible port types",
+          type: "error",
+        });
+        setTimeout(() => setConnectionFeedback(null), 3000);
         return;
       }
 
+      recordHistory();
       addConnection({
         id: `conn_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        sourceBlockId: params.source,
-        sourcePortId: params.sourceHandle || "output",
-        targetBlockId: params.target,
-        targetPortId: params.targetHandle || "input",
+        sourceBlockId: connection.source,
+        sourcePortId: connection.sourceHandle ?? "output",
+        targetBlockId: connection.target,
+        targetPortId: connection.targetHandle ?? "input",
       });
-
-      setConnectionFeedback({
-        message: "Connection created successfully",
-        type: "valid",
-      });
-      setTimeout(() => setConnectionFeedback(null), 2500);
+      setConnectionFeedback({ message: "Connected", type: "valid" });
+      setTimeout(() => setConnectionFeedback(null), 1500);
     },
-    [graph, addConnection]
+    [isValidConnection, recordHistory, addConnection]
   );
 
-  const onConnectEnd = useCallback(() => {
-    setTimeout(() => {
-      setConnectionFeedback(null);
-    }, 2500);
-  }, []);
-
-  // Handle Drag-and-Drop from Palette
-  const onDragOver = useCallback((event: React.DragEvent) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
   }, []);
 
   const onDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault();
-      const blockId = event.dataTransfer.getData("application/codebrix-block-id");
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const blockId = e.dataTransfer.getData("application/codebrix-block-id");
       if (!blockId) return;
-
       const def = blockRegistry.get(blockId);
       if (!def) return;
 
-      const position = screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
-
-      addBlock(def, position);
+      const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      addBlock(def, pos);
     },
     [screenToFlowPosition, addBlock]
   );
 
-  // Edge hover info state for canvas connection inspection
-  const [hoveredEdgeInfo, setHoveredEdgeInfo] = useState<{
-    sourceLabel: string;
-    targetLabel: string;
-    sourceType: string;
-    x: number;
-    y: number;
-  } | null>(null);
+  const handleViewportChange = useCallback(
+    (viewport: Viewport) => {
+      setCurrentZoom(viewport.zoom);
+      setZoomLevel(viewport.zoom);
+    },
+    [setZoomLevel]
+  );
+
+  const handleImportPipeline = async () => {
+    const res = await openProjectFileDialog();
+    if (!res) return;
+    const parsed = parseCbxProject(res.content);
+    if (parsed.success && parsed.project) {
+      setGraph(parsed.project.graph);
+      setProjectName(parsed.project.graph.name || "Imported Project");
+      markDirty(true);
+    }
+  };
+
+  // Node color helper for MiniMap
+  const getNodeColor = (n: import("@xyflow/react").Node) => {
+    const data = n.data as BlockNodeData | undefined;
+    if (!data?.definitionId) return "#10b981";
+    const def = blockRegistry.get(data.definitionId);
+    switch (def?.category) {
+      case "data": return "#06b6d4";
+      case "preprocessing": return "#3b82f6";
+      case "ml": return "#8b5cf6";
+      case "evaluation": return "#f59e0b";
+      case "visualization": return "#ec4899";
+      default: return "#10b981";
+    }
+  };
 
   return (
     <div
-      className="flex-1 h-full bg-transparent relative overflow-hidden select-none"
+      ref={containerRef}
+      className="flex-1 h-full bg-[var(--cb-elevation-app)] relative overflow-hidden select-none"
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      {/* Type compatibility & action floating feedback banner */}
+      {/* Toast feedback banner */}
       {connectionFeedback && (
         <div
-          className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 px-3.5 py-1.5 rounded-full border shadow-2xl flex items-center gap-2 text-xs font-mono backdrop-blur-md transition-all animate-in fade-in zoom-in-95 duration-150 ${
+          className={`absolute top-3 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-full border shadow-xl flex items-center gap-2 text-xs font-mono backdrop-blur-md transition-all animate-in fade-in zoom-in-95 duration-100 ${
             connectionFeedback.type === "error"
-              ? "bg-rose-950/95 border-rose-500/80 text-rose-200 shadow-rose-950/50"
-              : "bg-slate-900/95 border-cyan-500/80 text-cyan-200 shadow-slate-950/50"
+              ? "bg-rose-950/95 border-rose-500/80 text-rose-200"
+              : "bg-emerald-950/95 border-emerald-500/80 text-emerald-200"
           }`}
         >
-          <span>
-            {connectionFeedback.type === "error" ? (
-              <CloseIcon size={12} className="text-rose-300" />
-            ) : (
-              <CheckIcon size={12} className="text-emerald-300" />
-            )}
-          </span>
+          {connectionFeedback.type === "error" ? <X size={12} /> : <Check size={12} />}
           <span>{connectionFeedback.message}</span>
-        </div>
-      )}
-
-      {/* Floating edge connection hover inspector */}
-      {hoveredEdgeInfo && (
-        <div
-          style={{ top: hoveredEdgeInfo.y - 42, left: hoveredEdgeInfo.x - 90 }}
-          className="fixed z-50 pointer-events-none px-3 py-1.5 rounded-xl bg-[#090d18]/95 backdrop-blur-2xl border border-white/20 text-[10.5px] font-mono shadow-[0_12px_32px_rgba(0,0,0,0.8)] text-slate-200 flex items-center gap-2 animate-in fade-in duration-100"
-        >
-          <span className="text-white font-semibold">{hoveredEdgeInfo.sourceLabel}</span>
-          <span className="text-cyan-400 font-bold px-1.5 py-0.2 rounded bg-cyan-500/10 border border-cyan-500/25 text-[9px]">
-            {hoveredEdgeInfo.sourceType}
-          </span>
-          <span className="text-slate-500">→</span>
-          <span className="text-white font-semibold">{hoveredEdgeInfo.targetLabel}</span>
         </div>
       )}
 
@@ -458,31 +387,10 @@ function CanvasContent() {
         onEdgesChange={onEdgesChange}
         onSelectionChange={onSelectionChange}
         onEdgeClick={onEdgeClick}
-        onEdgeDoubleClick={onEdgeDoubleClick}
-        onEdgeContextMenu={onEdgeContextMenu}
-        onEdgeMouseEnter={(e, edge) => {
-          const source = graph.blocks[edge.source];
-          const target = graph.blocks[edge.target];
-          const sourceDef = source ? blockRegistry.get(source.definitionId) : null;
-          const targetDef = target ? blockRegistry.get(target.definitionId) : null;
-          const sourcePort = sourceDef?.outputs.find((p) => p.id === edge.sourceHandle);
-          setHoveredEdgeInfo({
-            sourceLabel: source?.label || sourceDef?.name || edge.source,
-            targetLabel: target?.label || targetDef?.name || edge.target,
-            sourceType: sourcePort?.type || "data",
-            x: e.clientX,
-            y: e.clientY,
-          });
-        }}
-        onEdgeMouseLeave={() => setHoveredEdgeInfo(null)}
         onNodeDragStart={() => recordHistory()}
-        deleteKeyCode={["Backspace", "Delete"]}
-        edgesFocusable={true}
-        edgesReconnectable={true}
         onConnect={onConnect}
-        onConnectEnd={onConnectEnd}
         isValidConnection={isValidConnection}
-        onNodeClick={(_event, node) => {
+        onNodeClick={(_e, node) => {
           setSelectedEdgeId(null);
           selectBlock(node.id);
         }}
@@ -490,70 +398,125 @@ function CanvasContent() {
           setSelectedEdgeId(null);
           selectBlock(null);
         }}
+        onViewportChange={handleViewportChange}
         fitView
         colorMode="dark"
         className="bg-transparent"
         proOptions={{ hideAttribution: true }}
       >
-        <Background gap={24} size={1.2} color="rgba(255, 255, 255, 0.08)" />
-        <Controls className="!bg-[#090d18]/80 !backdrop-blur-xl !border-white/10 !text-slate-300 rounded-xl overflow-hidden shadow-2xl" />
-        <MiniMap
-          nodeColor={(n) => {
-            const data = n.data as BlockNodeData | undefined;
-            if (data?.state === "failed") return "#f43f5e";
-            if (data?.state === "running") return "#38bdf8";
-            if (data?.state === "success") return "#10b981";
-            return "#10b981";
-          }}
-          nodeStrokeColor="#34d399"
-          nodeStrokeWidth={2}
-          nodeBorderRadius={4}
-          maskColor="rgba(10, 14, 26, 0.65)"
-          maskStrokeColor="#10b981"
-          maskStrokeWidth={2}
-          zoomable
-          pannable
-          ariaLabel="Canvas MiniMap"
-          className="!bg-[#0b0f19] !border-white/20 !rounded-xl !overflow-hidden !shadow-2xl"
-          style={{ width: 170, height: 115 }}
-        />
+        {/* Low-contrast but clearly perceptible dot grid */}
+        <Background gap={20} size={1} color="rgba(255, 255, 255, 0.12)" />
+
+        {/* Minimap: hidden when canvas has 0 nodes, drawn in category colors */}
+        {blockCount > 0 && (
+          <MiniMap
+            nodeColor={getNodeColor}
+            nodeStrokeColor="rgba(255, 255, 255, 0.3)"
+            nodeStrokeWidth={1}
+            nodeBorderRadius={2}
+            maskColor="rgba(11, 13, 19, 0.75)"
+            maskStrokeColor="var(--cb-accent)"
+            maskStrokeWidth={1.5}
+            zoomable
+            pannable
+            ariaLabel="Canvas MiniMap"
+            className="!bg-[var(--cb-elevation-panel)] !border-[var(--cb-border-subtle)] !rounded-[var(--cb-radius-control)] !shadow-[var(--cb-shadow-overlay)]"
+            style={{ width: 140, height: 95 }}
+          />
+        )}
       </ReactFlow>
 
-      {/* Pristine Blank Playground Empty State */}
-      {blockCount === 0 && !emptyStateDismissed && (
+      {/* Compact Vertical Zoom Controls with Zoom % Indicator */}
+      <div className="absolute bottom-4 left-4 z-20 flex flex-col items-center bg-[var(--cb-elevation-overlay)] border border-[var(--cb-border-strong)] rounded-[var(--cb-radius-control)] shadow-[var(--cb-shadow-tooltip)] overflow-hidden">
+        <button
+          onClick={() => zoomIn({ duration: 150 })}
+          className="w-7 h-7 flex items-center justify-center text-[var(--cb-text-secondary)] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
+          <Plus size={13} />
+        </button>
+        <button
+          onClick={() => fitView({ duration: 250, padding: 0.2 })}
+          className="w-7 px-0.5 py-0.5 text-[9px] font-mono text-[var(--cb-text-muted)] hover:text-white border-y border-[var(--cb-border-subtle)] text-center cursor-pointer transition-colors"
+          title="Click to fit view"
+        >
+          {Math.round(currentZoom * 100)}%
+        </button>
+        <button
+          onClick={() => zoomOut({ duration: 150 })}
+          className="w-7 h-7 flex items-center justify-center text-[var(--cb-text-secondary)] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
+          <Minus size={13} />
+        </button>
+        <button
+          onClick={() => fitView({ duration: 250, padding: 0.2 })}
+          className="w-7 h-7 flex items-center justify-center text-[var(--cb-text-secondary)] hover:text-white hover:bg-white/10 transition-colors border-t border-[var(--cb-border-subtle)] cursor-pointer"
+          title="Fit entire graph to screen"
+          aria-label="Fit to view"
+        >
+          <Maximize2 size={11} />
+        </button>
+        <Tooltip content="Auto-layout DAG (Format)" side="right">
+          <button
+            onClick={() => {
+              useWorkflowStore.getState().autoLayout();
+              setTimeout(() => fitView({ duration: 300, padding: 0.2 }), 80);
+            }}
+            className="w-7 h-7 flex items-center justify-center text-[var(--cb-text-secondary)] hover:text-white hover:bg-white/10 transition-colors border-t border-[var(--cb-border-subtle)] cursor-pointer"
+            title="Auto-layout DAG (Format)"
+            aria-label="Auto-layout DAG"
+          >
+            <LayoutGrid size={12} />
+          </button>
+        </Tooltip>
+      </div>
+
+      {/* Empty Canvas State Card (Task 6) - Disappears once a node exists */}
+      {blockCount === 0 && (
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
-          <div className="relative text-center p-8 rounded-3xl bg-[#090d18]/85 backdrop-blur-2xl border border-white/10 shadow-[0_24px_64px_rgba(0,0,0,0.8)] max-w-sm pointer-events-auto animate-in fade-in zoom-in-95 duration-200">
-            {/* Close / dismiss button */}
-            <button
-              onClick={() => setEmptyStateDismissed(true)}
-              className="absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              aria-label="Dismiss blank playground hint"
-            >
-              <CloseIcon size={14} />
-            </button>
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500/20 via-emerald-500/20 to-indigo-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto mb-3 text-emerald-400 shadow-[0_0_24px_rgba(16,185,129,0.25)]">
-              <SparklesIcon size={24} />
+          <div className="relative text-center p-6 rounded-[var(--cb-radius-panel)] bg-[var(--cb-elevation-panel)] border border-[var(--cb-border-strong)] shadow-[var(--cb-shadow-overlay)] max-w-sm pointer-events-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-10 h-10 rounded-xl bg-[var(--cb-accent-subtle)] border border-[var(--cb-accent-border)] flex items-center justify-center mx-auto mb-3 text-[var(--cb-accent)]">
+              <Sparkles size={20} />
             </div>
-            <h3 className="text-base font-bold text-white mb-1.5 tracking-tight">
-              Blank Playground
+            <h3 className="text-[14px] font-semibold text-[var(--cb-text-primary)] mb-1">
+              Workflow Canvas
             </h3>
-            <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-              Drag blocks from the <span className="text-cyan-300 font-medium">Palette</span> to build your workflow, or start from an example pipeline.
+            <p className="text-[12px] text-[var(--cb-text-secondary)] mb-4 leading-relaxed">
+              Drag blocks from the left or press <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[10px] text-white">⌘K</kbd> to add.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+
+            <div className="flex flex-col gap-1.5">
               <button
                 onClick={() => {
-                  // Open the palette and switch to the Templates section
-                  window.dispatchEvent(
-                    new CustomEvent("codebrix:switch-palette-section", {
-                      detail: { section: "templates" },
-                    })
-                  );
+                  useUiStore.getState().setPaletteOpen(true);
+                  useUiStore.getState().setActivePaletteSection("library");
                 }}
-                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs transition-all shadow-[0_4px_16px_rgba(16,185,129,0.3)] hover:shadow-[0_6px_20px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2 cursor-pointer border border-emerald-400/30 active:scale-95"
+                className="w-full h-8 px-3 rounded-[var(--cb-radius-control)] bg-[var(--cb-accent)] hover:bg-[var(--cb-accent-hover)] text-white font-medium text-[12px] flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs"
               >
-                <SparklesIcon size={13} />
-                <span>Browse Examples</span>
+                <Boxes size={13} />
+                <span>Browse blocks</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  useUiStore.getState().setPaletteOpen(true);
+                  useUiStore.getState().setActivePaletteSection("templates");
+                }}
+                className="w-full h-8 px-3 rounded-[var(--cb-radius-control)] bg-white/[0.04] hover:bg-white/10 text-[var(--cb-text-primary)] font-medium text-[12px] flex items-center justify-center gap-2 cursor-pointer border border-[var(--cb-border-subtle)] transition-colors"
+              >
+                <Sparkles size={13} className="text-amber-400" />
+                <span>Open an example</span>
+              </button>
+
+              <button
+                onClick={handleImportPipeline}
+                className="w-full h-8 px-3 rounded-[var(--cb-radius-control)] bg-white/[0.04] hover:bg-white/10 text-[var(--cb-text-primary)] font-medium text-[12px] flex items-center justify-center gap-2 cursor-pointer border border-[var(--cb-border-subtle)] transition-colors"
+              >
+                <FileUp size={13} className="text-cyan-400" />
+                <span>Import pipeline</span>
               </button>
             </div>
           </div>

@@ -4,27 +4,98 @@ import { outputRendererRegistry } from "./registry";
 import "./renderers"; // Ensure standard renderers are registered
 import { getPlotsTabCount, getImagesTabCount } from "./outputClassification";
 import {
-  MaximizeIcon,
-  MinimizeIcon,
-  CloseIcon,
-  CheckCircleIcon,
-  AlertCircleIcon,
-  TerminalIcon,
-} from "../../components/common/Icons";
+  Terminal,
+  Table as TableIcon,
+  LineChart,
+  Activity,
+  Image as ImageIcon,
+  Copy,
+  Trash2,
+  Maximize2,
+  Minimize2,
+  X,
+  Check,
+  Loader2,
+} from "lucide-react";
 
 interface TabConfig {
   id: OutputTab;
   label: string;
+  icon: typeof Terminal;
   rendererType: string;
+  emptyIcon: typeof Terminal;
+  emptyTitle: string;
+  emptyDesc: string;
 }
 
 const TABS: TabConfig[] = [
-  { id: "metrics", label: "Metrics", rendererType: "metrics" },
-  { id: "console", label: "Console", rendererType: "console" },
-  { id: "table", label: "Tables", rendererType: "table" },
-  { id: "image", label: "Images", rendererType: "image" },
-  { id: "plots", label: "Plots", rendererType: "plotly" },
+  {
+    id: "console",
+    label: "Console",
+    icon: Terminal,
+    rendererType: "console",
+    emptyIcon: Terminal,
+    emptyTitle: "Console Output Ready",
+    emptyDesc: "Standard output, logs, and interactive commands will appear here.",
+  },
+  {
+    id: "table",
+    label: "Tables",
+    icon: TableIcon,
+    rendererType: "table",
+    emptyIcon: TableIcon,
+    emptyTitle: "No Tabular Data",
+    emptyDesc: "Dataframe head/tail tables and CSV outputs will be rendered here.",
+  },
+  {
+    id: "plots",
+    label: "Plots",
+    icon: LineChart,
+    rendererType: "plotly",
+    emptyIcon: LineChart,
+    emptyTitle: "No Charts Generated",
+    emptyDesc: "Interactive Plotly and Matplotlib figures will be displayed here.",
+  },
+  {
+    id: "metrics",
+    label: "Metrics",
+    icon: Activity,
+    rendererType: "metrics",
+    emptyIcon: Activity,
+    emptyTitle: "No Metrics Computed",
+    emptyDesc: "Model accuracy, precision, recall, and loss metrics will show here.",
+  },
+  {
+    id: "image",
+    label: "Images",
+    icon: ImageIcon,
+    rendererType: "image",
+    emptyIcon: ImageIcon,
+    emptyTitle: "No Rendered Images",
+    emptyDesc: "Confusion matrix heatmaps and saved figures will appear here.",
+  },
 ];
+
+function formatRunDuration(result: { durationMs?: number | null; startedAt?: string | number; completedAt?: string | number } | null | undefined): string | null {
+  if (!result) return null;
+  let ms = result.durationMs;
+  if (typeof ms !== "number" || Number.isNaN(ms)) {
+    if (result.startedAt && result.completedAt) {
+      const start = new Date(result.startedAt).getTime();
+      const end = new Date(result.completedAt).getTime();
+      if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
+        ms = end - start;
+      }
+    }
+  }
+  if (typeof ms !== "number" || Number.isNaN(ms) || ms < 0) {
+    return null;
+  }
+  if (ms < 1000) {
+    return `${Math.round(ms)}ms`;
+  }
+  return `${(ms / 1000).toFixed(1)}s`;
+}
 
 export default function OutputPanel() {
   const isOutputOpen = useUiStore((s) => s.isOutputOpen);
@@ -42,6 +113,7 @@ export default function OutputPanel() {
 
   const [isMaximized, setIsMaximized] = useState(false);
   const [previousHeight, setPreviousHeight] = useState(panelHeight);
+  const [copied, setCopied] = useState(false);
 
   const toggleMaximize = useCallback(() => {
     if (isMaximized) {
@@ -54,86 +126,89 @@ export default function OutputPanel() {
     }
   }, [isMaximized, panelHeight, previousHeight, setPanelHeight]);
 
+  const handleCopyLogs = useCallback(() => {
+    const textLogs = outputs
+      .map((o) => {
+        if (o.type === "console") return o.text;
+        if (o.type === "error") return `[ERROR] ${o.message}`;
+        return JSON.stringify(o);
+      })
+      .join("\n");
+
+    navigator.clipboard.writeText(textLogs);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [outputs]);
+
   if (!isOutputOpen) return null;
 
-  const liveOutputs = outputs;
+  const imageCount = getImagesTabCount(outputs);
+  const visibleTabs = TABS.filter((t) => t.id !== "image" || imageCount > 0);
 
-  // Map backward compatible "visuals" tab to "plots"
-  const normalizedActiveTab: OutputTab = activeTab === "visuals" ? "plots" : activeTab;
+  let normalizedActiveTab: OutputTab = activeTab === "visuals" ? "plots" : activeTab;
+  if (normalizedActiveTab === "image" && imageCount === 0) {
+    normalizedActiveTab = "plots";
+  }
 
-  const currentTabConfig =
-    TABS.find((t) => t.id === normalizedActiveTab) || TABS[0]!;
-
-  const RendererComponent = outputRendererRegistry.getRenderer(
-    currentTabConfig.rendererType
-  );
+  const currentTabConfig = visibleTabs.find((t) => t.id === normalizedActiveTab) || visibleTabs[0] || TABS[0]!;
+  const RendererComponent = outputRendererRegistry.getRenderer(currentTabConfig.rendererType);
 
   const getTabCount = (tab: TabConfig): number => {
     switch (tab.id) {
       case "console":
-        return liveOutputs.filter((o) => o.type === "console" || o.type === "error").length;
+        return outputs.filter((o) => o.type === "console" || o.type === "error").length;
       case "table":
-        return liveOutputs.filter((o) => o.type === "table").length;
+        return outputs.filter((o) => o.type === "table").length;
       case "metrics":
-        return liveOutputs.filter((o) => o.type === "metrics").length;
+        return outputs.filter((o) => o.type === "metrics").length;
       case "image":
-        return getImagesTabCount(liveOutputs);
+        return imageCount;
       case "plots":
-      case "visuals":
-        return getPlotsTabCount(liveOutputs);
+        return getPlotsTabCount(outputs);
       default:
         return 0;
-     }
+    }
   };
 
-  const consoleLogs = liveOutputs.filter((o) => o.type === "console" || o.type === "error");
+  const consoleLogs = outputs.filter((o) => o.type === "console" || o.type === "error");
   const errorCount = consoleLogs.filter(
     (l) => l.type === "error" || (l.type === "console" && l.stream === "stderr")
   ).length;
 
+  const formattedDuration = formatRunDuration(result);
+
   return (
     <footer
       aria-label="Output Notebook"
-      className="w-full h-full flex flex-col overflow-hidden select-none"
+      className="w-full h-full flex flex-col bg-[var(--cb-elevation-panel)] border-t border-[var(--cb-border-subtle)] select-none overflow-hidden"
     >
       {/* Header Bar */}
-      <div className="h-9 px-3 bg-white/[0.02] border-b border-white/10 flex items-center justify-between shrink-0">
+      <div className="h-9 px-3 bg-[var(--cb-elevation-panel)] border-b border-[var(--cb-border-subtle)] flex items-center justify-between shrink-0">
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-1.5">
-          <div className="flex items-center gap-1.5 pr-2.5 border-r border-white/10 text-slate-400">
-            <TerminalIcon size={12} className="text-cyan-400" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-200">
-              Terminal
-            </span>
-          </div>
-
-          {TABS.map((tab) => {
+        <div className="flex items-center gap-1">
+          {visibleTabs.map((tab) => {
             const count = getTabCount(tab);
             const isActive = normalizedActiveTab === tab.id;
+            const Icon = tab.icon;
 
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-2.5 py-1 text-xs rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`h-7 px-2.5 rounded-[var(--cb-radius-control)] text-[12px] font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
                   isActive
-                    ? "bg-white/[0.12] text-white font-semibold border border-white/20 shadow-[0_0_10px_rgba(255,255,255,0.1)]"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.06]"
+                    ? "bg-white/10 text-white font-semibold"
+                    : "text-[var(--cb-text-secondary)] hover:text-white hover:bg-white/[0.05]"
                 }`}
               >
+                <Icon size={13} className={isActive ? "text-[var(--cb-accent)]" : "text-[var(--cb-text-muted)]"} />
                 <span>{tab.label}</span>
                 {tab.id === "console" && errorCount > 0 ? (
-                  <span className="px-1.5 py-0.2 bg-rose-500/25 text-rose-300 text-[9px] rounded-full border border-rose-500/40 font-mono font-bold shadow-[0_0_6px_rgba(244,63,94,0.3)]">
+                  <span className="px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300 text-[9px] font-mono border border-rose-500/30 font-bold">
                     {errorCount}
                   </span>
                 ) : count > 0 ? (
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[9px] font-mono ${
-                      isActive
-                        ? "bg-cyan-500/25 text-cyan-200 border border-cyan-400/40 font-bold"
-                        : "bg-white/[0.06] text-slate-400 border border-white/5"
-                    }`}
-                  >
+                  <span className="px-1.5 py-0.2 rounded-full bg-white/[0.06] text-[var(--cb-text-muted)] text-[9px] font-mono">
                     {count}
                   </span>
                 ) : null}
@@ -142,79 +217,89 @@ export default function OutputPanel() {
           })}
         </div>
 
-        {/* Status, Duration, Exit Code & Actions */}
-        <div className="flex items-center gap-2.5 text-xs font-mono">
-          {runState === "running" ? (
-            <span className="text-cyan-400 flex items-center gap-1.5 animate-pulse truncate max-w-xs font-medium">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.9)] shrink-0" />
-              {statusMessage || "Running Python execution..."}
-            </span>
-          ) : result ? (
-            <div className="flex items-center gap-2 text-slate-400 text-[11px]">
-              <span
-                className={`font-semibold flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${
-                  result.status === "success"
-                    ? "bg-emerald-950/60 text-emerald-300 border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.2)]"
-                    : "bg-rose-950/60 text-rose-300 border-rose-500/40 shadow-[0_0_8px_rgba(244,63,94,0.2)]"
-                }`}
-              >
-                {result.status === "success" ? (
-                  <CheckCircleIcon size={12} className="text-emerald-400" />
-                ) : (
-                  <AlertCircleIcon size={12} className="text-rose-400" />
+        {/* Status Chip, Copy, Clear & Window Controls */}
+        <div className="flex items-center gap-2 text-[11px] font-mono">
+          {/* Status Chip ("Ready / Running / Failed / Success") */}
+          <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-[var(--cb-border-subtle)] text-[11px]">
+            {runState === "running" ? (
+              <>
+                <Loader2 size={11} className="animate-spin text-cyan-400 shrink-0" />
+                <span className="text-cyan-300 font-medium">Running</span>
+              </>
+            ) : result?.status === "success" ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--cb-success)] shadow-[0_0_6px_rgba(16,185,129,0.8)]" />
+                <span className="text-emerald-300 font-medium">Success</span>
+                {formattedDuration && (
+                  <span className="text-[var(--cb-text-muted)]">({formattedDuration})</span>
                 )}
-                <span className="capitalize">{result.status}</span>
-              </span>
-              {typeof result.durationMs === "number" && (
-                <span className="text-slate-500">{result.durationMs}ms</span>
-              )}
-              {typeof result.exitCode === "number" && (
-                <span className="text-slate-500">exit:{result.exitCode}</span>
-              )}
-            </div>
-          ) : (
-            <span className="text-slate-500 text-[11px] italic">Ready</span>
-          )}
+              </>
+            ) : result?.status === "failed" || runState === "failed" ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--cb-error)] shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+                <span className="text-rose-300 font-medium">Failed</span>
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                <span className="text-[var(--cb-text-muted)]">Ready</span>
+              </>
+            )}
+          </div>
 
-          <div className="w-px h-3 bg-white/10 mx-0.5" />
+          <div className="w-px h-3 bg-[var(--cb-border-subtle)] mx-0.5" />
 
-          {liveOutputs.length > 0 && (
+          {/* Copy logs */}
+          <button
+            onClick={handleCopyLogs}
+            className="p-1 rounded-[var(--cb-radius-sm)] text-[var(--cb-text-muted)] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            title="Copy console logs"
+            aria-label="Copy logs"
+          >
+            {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+          </button>
+
+          {/* Clear logs */}
+          {outputs.length > 0 && (
             <button
               onClick={clearOutputs}
-              className="text-[10px] text-slate-400 hover:text-rose-300 transition-colors px-2 py-0.5 rounded-lg hover:bg-white/10 cursor-pointer"
+              className="p-1 rounded-[var(--cb-radius-sm)] text-[var(--cb-text-muted)] hover:text-rose-300 hover:bg-white/10 transition-colors cursor-pointer"
               title="Clear outputs"
+              aria-label="Clear outputs"
             >
-              Clear
+              <Trash2 size={13} />
             </button>
           )}
 
-          {/* Maximize / Restore Button */}
+          {/* Maximize / Restore */}
           <button
             onClick={toggleMaximize}
-            className="p-1 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-            title={isMaximized ? "Restore" : "Maximize"}
+            className="p-1 rounded-[var(--cb-radius-sm)] text-[var(--cb-text-muted)] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            title={isMaximized ? "Restore panel size" : "Maximize panel"}
+            aria-label="Maximize or restore"
           >
-            {isMaximized ? <MinimizeIcon size={12} /> : <MaximizeIcon size={12} />}
+            {isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
           </button>
 
-          {/* Collapse Button */}
+          {/* Close Panel */}
           <button
             onClick={toggleOutput}
-            className="p-1 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-            title="Close Terminal"
+            className="p-1 rounded-[var(--cb-radius-sm)] text-[var(--cb-text-muted)] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            title="Close Terminal (⌥T)"
+            aria-label="Close terminal"
           >
-            <CloseIcon size={12} />
+            <X size={13} />
           </button>
         </div>
       </div>
 
-      {/* Content Area Host */}
-      <div className="flex-1 p-3 overflow-hidden font-mono text-xs select-text bg-transparent min-h-0 min-w-0 flex flex-col">
+      {/* Panel Content Area */}
+      <div className="flex-1 p-3 overflow-hidden font-mono text-[12px] select-text min-h-0 min-w-0 flex flex-col">
         {RendererComponent ? (
           <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
             <RendererComponent
-              messages={liveOutputs}
-              latestMessage={liveOutputs[liveOutputs.length - 1]}
+              messages={outputs}
+              latestMessage={outputs[outputs.length - 1]}
               executionResult={result}
               runState={runState}
               statusMessage={statusMessage}
@@ -222,8 +307,14 @@ export default function OutputPanel() {
             />
           </div>
         ) : (
-          <div className="text-slate-500 text-center py-6 font-mono text-xs">
-            No renderer registered for channel "{currentTabConfig.rendererType}".
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-[var(--cb-text-muted)] space-y-2">
+            <currentTabConfig.emptyIcon size={24} className="text-slate-600" />
+            <div className="text-[13px] font-semibold text-[var(--cb-text-primary)]">
+              {currentTabConfig.emptyTitle}
+            </div>
+            <p className="text-[11px] max-w-sm leading-relaxed">
+              {currentTabConfig.emptyDesc}
+            </p>
           </div>
         )}
       </div>

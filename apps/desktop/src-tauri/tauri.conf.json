@@ -12,13 +12,16 @@
   "app": {
     "windows": [
       {
-        "title": "CodeBrix — Visual ML Pipeline Builder",
+        "label": "main",
+        "title": "CodeBrix",
         "width": 1280,
         "height": 800,
         "minWidth": 960,
         "minHeight": 600,
         "center": true,
         "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
         "resizable": true
       }
     ],

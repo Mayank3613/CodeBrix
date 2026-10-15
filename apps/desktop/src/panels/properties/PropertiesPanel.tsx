@@ -1,18 +1,24 @@
 import { useState, useEffect } from "react";
-import { useWorkflowStore, useUiStore } from "../../stores";
+import { useWorkflowStore, useUiStore, useValidationStore, useProjectStore } from "../../stores";
 import { blockRegistry } from "../../registry";
 import { validatePropertyValue } from "./propertyValidation";
 import {
-  SlidersIcon,
-  TrashIcon,
-  AlertTriangleIcon,
-} from "../../components/common/Icons";
+  Trash2,
+  AlertTriangle,
+  AlertCircle,
+  CheckCircle2,
+  Layers,
+  X,
+} from "lucide-react";
 
 export default function PropertiesPanel() {
   const isPropertiesOpen = useUiStore((s) => s.isPropertiesOpen);
+  const toggleProperties = useUiStore((s) => s.toggleProperties);
   const selectedBlockId = useUiStore((s) => s.selectedBlockId);
   const selectBlock = useUiStore((s) => s.selectBlock);
+  const focusBlock = useUiStore((s) => s.focusBlock);
 
+  const graph = useWorkflowStore((s) => s.graph);
   const block = useWorkflowStore((s) =>
     selectedBlockId ? s.graph.blocks[selectedBlockId] ?? null : null
   );
@@ -20,11 +26,14 @@ export default function PropertiesPanel() {
   const updateBlockLabel = useWorkflowStore((s) => s.updateBlockLabel);
   const removeBlock = useWorkflowStore((s) => s.removeBlock);
 
+  const validationResult = useValidationStore((s) => s.validationResult);
+  const projectName = useProjectStore((s) => s.projectName);
+  const isDirty = useProjectStore((s) => s.isDirty);
+
   // Local draft values & validation errors for live feedback
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
   const [localValues, setLocalValues] = useState<Record<string, unknown>>({});
 
-  // Reset local state when block selection changes
   useEffect(() => {
     if (block) {
       setLocalValues({ ...block.config });
@@ -34,29 +43,132 @@ export default function PropertiesPanel() {
 
   if (!isPropertiesOpen) return null;
 
+  // ─────────────────────────────────────────────────────────────────
+  // STATE 1: NO BLOCK SELECTED → PIPELINE OVERVIEW
+  // ─────────────────────────────────────────────────────────────────
   if (!block) {
+    const blockCount = Object.keys(graph.blocks).length;
+    const connectionCount = graph.connections.length;
+    const errors = validationResult?.errors || [];
+    const warnings = validationResult?.warnings || [];
+    const hasIssues = errors.length > 0 || warnings.length > 0;
+
     return (
-      <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 text-slate-400 select-none">
-        <div className="w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-slate-300 mb-3 shadow-lg">
-          <SlidersIcon size={20} />
+      <div className="w-full h-full flex flex-col bg-[var(--cb-elevation-panel)] select-none overflow-hidden text-[12px]">
+        {/* Header */}
+        <div className="h-9 px-3 border-b border-[var(--cb-border-subtle)] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-1.5">
+            <Layers size={13} className="text-[var(--cb-accent)]" />
+            <span className="font-semibold text-[var(--cb-text-primary)]">Pipeline Overview</span>
+          </div>
+          <button
+            onClick={toggleProperties}
+            className="p-1 text-[var(--cb-text-muted)] hover:text-white rounded-[var(--cb-radius-sm)] hover:bg-white/10 transition-colors cursor-pointer"
+            title="Collapse properties panel"
+            aria-label="Collapse panel"
+          >
+            <X size={12} />
+          </button>
         </div>
-        <p className="text-xs font-semibold text-slate-200">No Block Selected</p>
-        <p className="text-[11px] text-slate-400 mt-1 max-w-[200px] leading-relaxed">
-          Select any block on the canvas to configure hyperparameters, rename, or inspect ports.
-        </p>
+
+        <div className="flex-1 overflow-y-auto p-3 space-y-4">
+          {/* Project Details Card */}
+          <div className="p-3 rounded-[var(--cb-radius-control)] bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono text-[var(--cb-text-muted)] uppercase tracking-wider">
+                Project
+              </span>
+              {isDirty && (
+                <span className="text-[10px] text-amber-400 font-mono flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  modified
+                </span>
+              )}
+            </div>
+            <div className="font-semibold text-[13px] text-white truncate">{projectName}</div>
+            <p className="text-[11px] text-[var(--cb-text-secondary)] leading-relaxed">
+              Visual Machine Learning pipeline DAG workflow. Select any block on the canvas to inspect its parameters.
+            </p>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-2.5 rounded-[var(--cb-radius-control)] bg-white/[0.02] border border-[var(--cb-border-subtle)]">
+              <div className="text-[10px] font-mono text-[var(--cb-text-muted)] uppercase">Blocks</div>
+              <div className="text-[16px] font-bold font-mono text-cyan-300 mt-0.5">{blockCount}</div>
+            </div>
+            <div className="p-2.5 rounded-[var(--cb-radius-control)] bg-white/[0.02] border border-[var(--cb-border-subtle)]">
+              <div className="text-[10px] font-mono text-[var(--cb-text-muted)] uppercase">Connections</div>
+              <div className="text-[16px] font-bold font-mono text-emerald-300 mt-0.5">{connectionCount}</div>
+            </div>
+          </div>
+
+          {/* Validation Issues with Click-to-Focus Block Navigation */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono text-[var(--cb-text-muted)] uppercase tracking-wider">
+                Validation Status
+              </span>
+              {!hasIssues && validationResult?.valid && (
+                <span className="text-[10.5px] text-emerald-300 font-medium flex items-center gap-1">
+                  <CheckCircle2 size={12} />
+                  Valid
+                </span>
+              )}
+            </div>
+
+            {hasIssues ? (
+              <div className="space-y-1.5">
+                {errors.map((err, idx) => {
+                  const targetBlock = err.blockId ? graph.blocks[err.blockId] : null;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => err.blockId && focusBlock(err.blockId)}
+                      className="w-full text-left p-2.5 rounded-[var(--cb-radius-control)] bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800/60 transition-colors flex items-start gap-2 cursor-pointer group"
+                      title="Click to focus block on canvas"
+                    >
+                      <AlertCircle size={13} className="text-rose-400 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        {targetBlock && (
+                          <div className="text-[10px] font-mono text-rose-300 font-semibold group-hover:underline">
+                            {targetBlock.label || targetBlock.definitionId}
+                          </div>
+                        )}
+                        <p className="text-[11px] text-rose-200 leading-tight">{err.message}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {warnings.map((warn, idx) => (
+                  <div
+                    key={idx}
+                    className="p-2 rounded-[var(--cb-radius-control)] bg-amber-950/30 border border-amber-800/50 text-[11px] text-amber-200 flex items-start gap-2"
+                  >
+                    <AlertTriangle size={13} className="text-amber-400 shrink-0 mt-0.5" />
+                    <p className="leading-tight">{warn.message}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-3 rounded-[var(--cb-radius-control)] bg-white/[0.02] border border-[var(--cb-border-subtle)] text-center text-slate-400 space-y-1">
+                <CheckCircle2 size={18} className="mx-auto text-emerald-400" />
+                <p className="text-[11px]">No validation issues found.</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
 
+  // ─────────────────────────────────────────────────────────────────
+  // STATE 2: BLOCK SELECTED → INSPECTOR
+  // ─────────────────────────────────────────────────────────────────
   const def = blockRegistry.get(block.definitionId);
   const schema = def?.configSchema || {};
   const schemaEntries = Object.entries(schema);
-
-  // Detect dataset loaded in this block
-  const rawPath = (localValues.filePath || localValues.filepath || localValues.file || localValues.path || localValues.dataset || localValues.csvPath || block.config.filePath || block.config.filepath || block.config.file || block.config.dataset || "") as string;
-  const datasetName = typeof rawPath === "string" && rawPath.trim()
-    ? rawPath.split(/[/\\]/).pop()?.replace(/^["']+|["']+$/g, "")
-    : null;
 
   const handleDelete = () => {
     removeBlock(block.id);
@@ -65,184 +177,144 @@ export default function PropertiesPanel() {
 
   const handleFieldChange = (key: string, value: unknown, fieldSchema: import("@codebrix/types").BlockConfigField) => {
     setLocalValues((prev) => ({ ...prev, [key]: value }));
-
     const error = validatePropertyValue(value, fieldSchema);
     setFieldErrors((prev) => ({ ...prev, [key]: error }));
-
-    // Only update global workflow state when value satisfies the schema
     if (error === null) {
       updateBlockConfig(block.id, key, value);
     }
   };
 
   return (
-    <div className="w-full h-full flex flex-col overflow-y-auto select-none">
-      {/* Header */}
-      <div className="p-3.5 border-b border-white/10 bg-white/[0.02] shrink-0">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-mono font-bold text-cyan-300 uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/25">
+    <div className="w-full h-full flex flex-col bg-[var(--cb-elevation-panel)] select-none overflow-hidden text-[12px]">
+      {/* Header with Block Name + Category Chip + Close */}
+      <div className="h-9 px-3 border-b border-[var(--cb-border-subtle)] flex items-center justify-between shrink-0 bg-[var(--cb-elevation-raised)]">
+        <div className="flex items-center gap-2 truncate mr-2">
+          <span className="text-[9.5px] font-mono uppercase px-1.5 py-0.2 rounded bg-white/10 text-cyan-300 font-semibold border border-white/5">
             {def?.category || "block"}
           </span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono font-medium flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
-            <span>{block.state ?? "idle"}</span>
+          <span className="font-semibold text-white truncate text-[12px]">
+            {block.label || def?.name || block.id}
           </span>
         </div>
 
-        {/* Editable Block Name */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleDelete}
+            className="p-1 text-[var(--cb-text-muted)] hover:text-rose-400 hover:bg-rose-950/40 rounded-[var(--cb-radius-sm)] transition-colors cursor-pointer"
+            title="Delete block (Del)"
+            aria-label="Delete block"
+          >
+            <Trash2 size={12} />
+          </button>
+          <button
+            onClick={() => selectBlock(null)}
+            className="p-1 text-[var(--cb-text-muted)] hover:text-white rounded-[var(--cb-radius-sm)] hover:bg-white/10 transition-colors cursor-pointer"
+            title="Deselect block"
+            aria-label="Close inspector"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+        {/* Block Display Name Editable Field */}
         <div className="space-y-1">
-          <label className="text-[10px] font-mono text-slate-400 flex items-center justify-between">
-            <span>Block Display Name:</span>
-            <span className="text-[9px] text-cyan-400">Click to rename</span>
+          <label className="text-[10px] font-mono text-[var(--cb-text-muted)] uppercase tracking-wider">
+            Block Label
           </label>
           <input
             type="text"
             value={block.label || def?.name || ""}
             onChange={(e) => updateBlockLabel(block.id, e.target.value)}
-            placeholder="Enter custom block name..."
-            className="cb-input text-xs font-semibold text-white !py-1 !px-2.5"
+            className="w-full h-7 px-2.5 bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] focus:border-[var(--cb-accent)] rounded-[var(--cb-radius-control)] text-white text-[12px] font-medium outline-none transition-colors"
           />
         </div>
 
-        {/* Active Dataset Banner */}
-        {datasetName && (
-          <div className="mt-2.5 p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-2 truncate">
-              <span className="text-cyan-400 text-xs">📊</span>
-              <div className="truncate">
-                <div className="text-[9px] text-cyan-400 font-mono uppercase font-semibold">Active Dataset</div>
-                <div className="text-xs font-semibold text-white truncate font-mono">{datasetName}</div>
-              </div>
-            </div>
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-200 font-mono border border-cyan-500/30 font-bold shrink-0">
-              loaded
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Configuration Form */}
-      <div className="p-3.5 space-y-4 flex-1">
-        <div>
-          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+        {/* Section 1: Parameters */}
+        <div className="space-y-3">
+          <div className="text-[10.5px] font-mono text-[var(--cb-text-muted)] uppercase tracking-wider border-b border-[var(--cb-border-subtle)] pb-1">
             Parameters
-          </h4>
+          </div>
 
           {schemaEntries.length === 0 ? (
-            <p className="text-xs text-slate-500 italic">No configurable parameters for this block.</p>
+            <p className="text-[11px] text-[var(--cb-text-muted)] italic">No configurable parameters.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {schemaEntries.map(([key, field]) => {
                 const currentVal = localValues[key] ?? block.config[key] ?? field.defaultValue ?? "";
                 const hasError = Boolean(fieldErrors[key]);
 
                 return (
-                  <div key={key} className="space-y-1.5">
+                  <div key={key} className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-mono text-slate-300 block truncate">
+                      <label className="text-[11px] font-mono text-[var(--cb-text-secondary)] truncate">
                         {field.label || key}
                       </label>
                       {field.required && (
-                        <span className="text-[9px] text-rose-400 font-mono">required</span>
+                        <span className="text-[9px] text-rose-400 font-mono">req</span>
                       )}
                     </div>
 
                     {field.type === "boolean" ? (
-                      /* Tactile Bento Toggle Switch inspired by reference */
-                      <div className="flex items-center justify-between pt-0.5">
-                        <span className="text-xs text-slate-400 font-mono">
-                          {Boolean(currentVal) ? "Enabled" : "Disabled"}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleFieldChange(key, !Boolean(currentVal), field)}
-                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none ${
-                            Boolean(currentVal)
-                              ? "bg-emerald-500/90 border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.5)]"
-                              : "bg-white/[0.08] border-white/15"
-                          }`}
-                        >
-                          <span
-                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out mt-0.5 ${
-                              Boolean(currentVal) ? "translate-x-5" : "translate-x-0.5 bg-slate-400"
-                            }`}
-                          />
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleFieldChange(key, !Boolean(currentVal), field)}
+                        className={`w-full h-7 px-2.5 rounded-[var(--cb-radius-control)] border text-[11px] font-mono flex items-center justify-between transition-colors cursor-pointer ${
+                          Boolean(currentVal)
+                            ? "bg-[var(--cb-accent-subtle)] border-[var(--cb-accent-border)] text-emerald-300"
+                            : "bg-white/[0.02] border-[var(--cb-border-subtle)] text-[var(--cb-text-muted)]"
+                        }`}
+                      >
+                        <span>{Boolean(currentVal) ? "True" : "False"}</span>
+                        <span className={`w-2 h-2 rounded-full ${Boolean(currentVal) ? "bg-[var(--cb-accent)]" : "bg-slate-600"}`} />
+                      </button>
                     ) : field.type === "select" ? (
                       <select
                         value={String(currentVal)}
                         onChange={(e) => handleFieldChange(key, e.target.value, field)}
-                        className={`w-full bg-white/[0.04] border rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none transition-all ${
-                          hasError
-                            ? "border-rose-500 focus:border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.3)]"
-                            : "border-white/10 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30"
-                        }`}
+                        className="w-full h-7 px-2 bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] focus:border-[var(--cb-accent)] rounded-[var(--cb-radius-control)] text-white text-[11px] font-mono outline-none"
                       >
                         {field.options?.map((opt) => (
-                          <option key={String(opt.value)} value={String(opt.value)} className="bg-slate-900 text-white">
+                          <option key={String(opt.value)} value={String(opt.value)} className="bg-[var(--cb-elevation-overlay)]">
                             {opt.label}
                           </option>
                         ))}
                       </select>
+                    ) : field.type === "slider" ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={field.min ?? 0}
+                          max={field.max ?? 100}
+                          step={field.step ?? 1}
+                          value={Number(currentVal) || 0}
+                          onChange={(e) => handleFieldChange(key, Number(e.target.value), field)}
+                          className="flex-1 accent-[var(--cb-accent)]"
+                        />
+                        <span className="text-[11px] font-mono text-cyan-300 w-10 text-right">
+                          {String(currentVal)}
+                        </span>
+                      </div>
                     ) : field.type === "file" ? (
-                      <div className="flex gap-1.5">
+                      <div className="flex items-center gap-1.5">
                         <input
                           type="text"
                           value={String(currentVal)}
-                          onChange={(e) => {
-                            const cleaned = e.target.value.trim().replace(/^["']+|["']+$/g, "");
-                            handleFieldChange(key, cleaned, field);
-                          }}
-                          className={`flex-1 bg-white/[0.04] border rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none transition-all ${
-                            hasError
-                              ? "border-rose-500 focus:border-rose-400"
-                              : "border-white/10 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30"
-                          }`}
+                          onChange={(e) => handleFieldChange(key, e.target.value, field)}
+                          className="flex-1 h-7 px-2 bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] focus:border-[var(--cb-accent)] rounded-[var(--cb-radius-control)] text-white text-[11px] font-mono outline-none"
                         />
-                        <label className="px-3 py-1.5 bg-white/[0.06] hover:bg-white/[0.12] text-cyan-300 hover:text-white rounded-lg text-xs font-mono cursor-pointer border border-white/10 flex items-center shrink-0 transition-colors">
+                        <label className="h-7 px-2.5 bg-white/10 hover:bg-white/15 text-white rounded-[var(--cb-radius-control)] text-[11px] font-medium flex items-center cursor-pointer transition-colors">
                           Browse
                           <input
                             type="file"
                             className="hidden"
                             onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                handleFieldChange(key, file.name, field);
-                              }
+                              const f = e.target.files?.[0];
+                              if (f) handleFieldChange(key, f.name, field);
                             }}
                           />
                         </label>
-                      </div>
-                    ) : key === "customCode" || key === "code" || String(currentVal).includes("\n") ? (
-                      <textarea
-                        rows={6}
-                        value={String(currentVal)}
-                        placeholder={field.placeholder || "Enter Python code..."}
-                        onChange={(e) => handleFieldChange(key, e.target.value, field)}
-                        className={`w-full bg-black/40 border rounded-lg px-3 py-2 text-xs text-emerald-300 font-mono focus:outline-none transition-all ${
-                          hasError
-                            ? "border-rose-500 focus:border-rose-400"
-                            : "border-white/10 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30"
-                        }`}
-                        spellCheck={false}
-                      />
-                    ) : field.type === "slider" ? (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="range"
-                            min={field.min ?? 0}
-                            max={field.max ?? 100}
-                            step={field.step ?? 1}
-                            value={Number(currentVal) || 0}
-                            onChange={(e) => handleFieldChange(key, Number(e.target.value), field)}
-                            className="cb-range flex-1"
-                          />
-                          <span className="text-[11px] font-mono text-cyan-300 w-12 text-right">
-                            {String(currentVal)}
-                          </span>
-                        </div>
                       </div>
                     ) : (
                       <input
@@ -253,32 +325,15 @@ export default function PropertiesPanel() {
                         value={String(currentVal)}
                         placeholder={field.placeholder}
                         onChange={(e) => {
-                          const val =
-                            field.type === "number"
-                              ? e.target.value === ""
-                                ? ""
-                                : Number(e.target.value)
-                              : e.target.value;
+                          const val = field.type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value;
                           handleFieldChange(key, val, field);
                         }}
-                        className={`w-full bg-white/[0.04] border rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none transition-all ${
-                          hasError
-                            ? "border-rose-500 focus:border-rose-400"
-                            : "border-white/10 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/30"
-                        }`}
+                        className="w-full h-7 px-2 bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] focus:border-[var(--cb-accent)] rounded-[var(--cb-radius-control)] text-white text-[11px] font-mono outline-none"
                       />
                     )}
 
-                    {/* Inline error feedback */}
                     {hasError && (
-                      <div className="flex items-center gap-1 text-[10px] text-rose-400 font-mono mt-0.5">
-                        <AlertTriangleIcon size={10} className="shrink-0" />
-                        <span>{fieldErrors[key]}</span>
-                      </div>
-                    )}
-
-                    {field.description && !hasError && (
-                      <p className="text-[10px] text-slate-500">{field.description}</p>
+                      <span className="text-[10px] text-rose-400 font-mono block">{fieldErrors[key]}</span>
                     )}
                   </div>
                 );
@@ -287,32 +342,54 @@ export default function PropertiesPanel() {
           )}
         </div>
 
-        {/* Ports Summary (Bento Sub-Card) */}
-        <div className="pt-3 border-t border-white/10 space-y-2">
-          <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Connected Ports
-          </h4>
-          <div className="p-2 rounded-lg bg-white/[0.03] border border-white/5 space-y-1.5 text-[10px] font-mono">
-            <div className="text-slate-300 truncate flex items-center gap-1.5">
-              <span className="text-slate-500">Inputs:</span>
-              <span className="text-cyan-300">{def?.inputs.map((p) => p.name).join(", ") || "None"}</span>
+        {/* Section 2: Ports */}
+        <div className="space-y-2 pt-2 border-t border-[var(--cb-border-subtle)]">
+          <div className="text-[10.5px] font-mono text-[var(--cb-text-muted)] uppercase tracking-wider">
+            Ports Contract
+          </div>
+
+          <div className="p-2.5 rounded-[var(--cb-radius-control)] bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] space-y-2 text-[11px] font-mono">
+            <div>
+              <span className="text-[10px] text-[var(--cb-text-muted)] uppercase tracking-wider block mb-1">
+                Inputs ({def?.inputs.length || 0}):
+              </span>
+              <div className="flex flex-wrap gap-1">
+                {def?.inputs.map((p) => (
+                  <span key={p.id} className="px-1.5 py-0.2 rounded bg-white/5 border border-white/10 text-cyan-300">
+                    {p.name} ({p.type})
+                  </span>
+                ))}
+                {def?.inputs.length === 0 && <span className="text-slate-500 italic">None</span>}
+              </div>
             </div>
-            <div className="text-slate-300 truncate flex items-center gap-1.5">
-              <span className="text-slate-500">Outputs:</span>
-              <span className="text-purple-300">{def?.outputs.map((p) => p.name).join(", ") || "None"}</span>
+
+            <div>
+              <span className="text-[10px] text-[var(--cb-text-muted)] uppercase tracking-wider block mb-1">
+                Outputs ({def?.outputs.length || 0}):
+              </span>
+              <div className="flex flex-wrap gap-1">
+                {def?.outputs.map((p) => (
+                  <span key={p.id} className="px-1.5 py-0.2 rounded bg-white/5 border border-white/10 text-emerald-300">
+                    {p.name} ({p.type})
+                  </span>
+                ))}
+                {def?.outputs.length === 0 && <span className="text-slate-500 italic">None</span>}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Delete Block */}
-        <div className="pt-3 border-t border-white/10">
-          <button
-            onClick={handleDelete}
-            className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-rose-950/60 to-red-950/60 hover:from-rose-900/80 hover:to-red-900/80 border border-rose-500/40 hover:border-rose-400 text-rose-200 hover:text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-[0_2px_12px_rgba(244,63,94,0.25)] cursor-pointer"
-          >
-            <TrashIcon size={12} />
-            <span>Delete Block</span>
-          </button>
+        {/* Section 3: Notes & Documentation */}
+        <div className="space-y-1.5 pt-2 border-t border-[var(--cb-border-subtle)]">
+          <div className="text-[10.5px] font-mono text-[var(--cb-text-muted)] uppercase tracking-wider">
+            Documentation & Notes
+          </div>
+          <p className="text-[11px] text-[var(--cb-text-secondary)] leading-relaxed">
+            {def?.description || "No documentation available for this block."}
+          </p>
+          <div className="text-[10px] font-mono text-[var(--cb-text-muted)] pt-1">
+            ID: <span className="text-slate-400">{def?.id}</span>
+          </div>
         </div>
       </div>
     </div>

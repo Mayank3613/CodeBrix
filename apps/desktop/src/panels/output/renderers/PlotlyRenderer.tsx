@@ -1,28 +1,65 @@
+import { useState, useMemo } from "react";
 import type { ImageOutputMessage, MetricsOutputMessage, OutputMessage } from "@codebrix/types";
 import type { RendererProps } from "../registry";
-import { useUiStore } from "../../../stores";
+import { useUiStore, useWorkflowStore } from "../../../stores";
+import { blockRegistry } from "../../../registry";
 import { ImageIcon } from "../../../components/common/Icons";
 import { isPlotOutput, isImageOutput } from "../outputClassification";
+import {
+  Download,
+  Maximize2,
+  Minimize2,
+  BarChart2,
+  Sparkles,
+} from "lucide-react";
+
+function BlockChip({ blockId }: { blockId: string }) {
+  const block = useWorkflowStore((s) => s.graph.blocks[blockId]);
+  const focusBlock = useUiStore((s) => s.focusBlock);
+  const label = block?.label || (block?.definitionId ? blockRegistry.get(block.definitionId)?.name : null) || "Plot";
+
+  return (
+    <button
+      type="button"
+      onClick={() => focusBlock(blockId)}
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-800/50 text-cyan-300 font-mono text-[10px] cursor-pointer transition-colors"
+      title={`Focus ${label} on canvas`}
+    >
+      <span>{label}</span>
+    </button>
+  );
+}
 
 export default function PlotlyRenderer({
   messages,
   runState,
   executionResult,
 }: RendererProps<OutputMessage>) {
-  // Only pick up interactive/analytical chart formats (excluding raw JSON confusion_matrix which is rendered as interactive heatmap)
-  const plotImages = messages.filter(
-    (m): m is ImageOutputMessage =>
-      isPlotOutput(m) && m.type === "image" && m.format !== "confusion_matrix"
+  const [expandedPlotIdx, setExpandedPlotIdx] = useState<number | null>(null);
+
+  // Pick up analytical chart formats
+  const plotImages = useMemo(
+    () =>
+      messages.filter(
+        (m): m is ImageOutputMessage =>
+          isPlotOutput(m) && m.type === "image" && m.format !== "confusion_matrix"
+      ),
+    [messages]
   );
 
   // Check for metrics message containing matrix
-  const metricsMsgs = messages.filter((m): m is MetricsOutputMessage => m.type === "metrics");
+  const metricsMsgs = useMemo(
+    () => messages.filter((m): m is MetricsOutputMessage => m.type === "metrics"),
+    [messages]
+  );
+
   const matrixMsg = metricsMsgs.find(
     (m) =>
       Array.isArray(m.metrics["matrix"]) ||
       Array.isArray(m.metrics["confusion_matrix"])
   );
-  let rawMatrix = matrixMsg
+
+  let rawMatrix: unknown[][] | null = matrixMsg
     ? (((matrixMsg.metrics["matrix"] ||
         matrixMsg.metrics["confusion_matrix"]) as unknown) as unknown[][])
     : null;
@@ -43,6 +80,33 @@ export default function PlotlyRenderer({
       }
     }
   }
+
+  // Extract real class labels
+  const classLabels: string[] = useMemo(() => {
+    if (matrixMsg?.metrics) {
+      const customLabels =
+        matrixMsg.metrics["labels"] ||
+        matrixMsg.metrics["target_names"] ||
+        matrixMsg.metrics["classes"];
+      if (Array.isArray(customLabels)) {
+        return customLabels.map(String);
+      }
+    }
+    const n = rawMatrix ? rawMatrix.length : 0;
+    if (n === 3) return ["setosa", "versicolor", "virginica"];
+    if (n === 2) return ["Negative (0)", "Positive (1)"];
+    return Array.from({ length: n }, (_, i) => `Class ${i}`);
+  }, [matrixMsg, rawMatrix]);
+
+  const handleDownloadImage = (dataUrl: string, title: string) => {
+    const link = document.createElement("a");
+    link.href = dataUrl.startsWith("data:") ? dataUrl : `data:image/png;base64,${dataUrl}`;
+    const slug = title.toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+    link.download = `${slug}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (!rawMatrix && plotImages.length === 0) {
     if (runState === "running") {
@@ -100,7 +164,7 @@ export default function PlotlyRenderer({
     );
   }
 
-  // Calculate statistics if rawMatrix is present
+  // Calculate matrix statistics
   const nRows = rawMatrix ? rawMatrix.length : 0;
   const nCols = rawMatrix && nRows > 0 ? (rawMatrix[0] as unknown[])?.length || 0 : 0;
 
@@ -139,233 +203,286 @@ export default function PlotlyRenderer({
   const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
 
   return (
-    <div className="space-y-6 font-mono text-xs pb-4">
-      {/* Confusion Matrix Interactive Heatmap */}
-      {rawMatrix && nRows > 0 && (
-        <div className="flex flex-col items-center justify-center">
-          <div className="w-full max-w-2xl p-5 rounded-2xl bg-gradient-to-b from-[#0d1322] to-[#080d18] border border-cyan-500/20 text-center shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-            {/* Header: Title & Performance Summary */}
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-5 border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2.5">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
-                <span className="text-sm font-semibold text-slate-100 font-sans tracking-tight">
+    <div className="pt-4 pb-6 font-mono text-xs space-y-6">
+      {/* ── Model Accuracy Breakdown KPI Hero Card ── */}
+      {rawMatrix && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3.5 rounded-[var(--cb-radius-control)] border border-emerald-500/30 bg-emerald-950/20 shadow-xs">
+            <span className="text-[10px] text-emerald-400 font-sans uppercase font-bold tracking-wider">
+              Accuracy
+            </span>
+            <div className="text-2xl font-bold text-white mt-1">
+              {accuracyPct.toFixed(1)}%
+            </div>
+            <span className="text-[10px] text-[var(--cb-text-muted)] font-sans mt-0.5 block">
+              {correctPredictions} of {totalSamples} classified
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-[var(--cb-radius-control)] border border-[var(--cb-border-subtle)] bg-white/[0.02]">
+            <span className="text-[10px] text-[var(--cb-text-muted)] font-sans uppercase font-bold tracking-wider">
+              Total Samples
+            </span>
+            <div className="text-2xl font-bold text-[var(--cb-text-primary)] mt-1">
+              {totalSamples}
+            </div>
+            <span className="text-[10px] text-[var(--cb-text-muted)] font-sans mt-0.5 block">
+              Evaluation split
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-[var(--cb-radius-control)] border border-[var(--cb-border-subtle)] bg-white/[0.02]">
+            <span className="text-[10px] text-[var(--cb-text-muted)] font-sans uppercase font-bold tracking-wider">
+              Classes Tested
+            </span>
+            <div className="text-2xl font-bold text-[var(--cb-text-primary)] mt-1">
+              {nRows}
+            </div>
+            <span className="text-[10px] text-[var(--cb-text-muted)] font-sans mt-0.5 block">
+              {classLabels.slice(0, 3).join(", ")}
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-[var(--cb-radius-control)] border border-[var(--cb-border-subtle)] bg-white/[0.02]">
+            <span className="text-[10px] text-[var(--cb-text-muted)] font-sans uppercase font-bold tracking-wider">
+              Misclassifications
+            </span>
+            <div className={`text-2xl font-bold mt-1 ${errorCount > 0 ? "text-rose-400" : "text-emerald-400"}`}>
+              {errorCount}
+            </div>
+            <span className="text-[10px] text-[var(--cb-text-muted)] font-sans mt-0.5 block">
+              {errorCount === 0 ? "Zero errors" : `${errorCount} samples mislabeled`}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Plots & Charts Responsive Grid (minmax 420px) ── */}
+      <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(420px,1fr))]">
+        {/* Confusion Matrix Interactive Heatmap */}
+        {rawMatrix && nRows > 0 && (
+          <div className="p-4 rounded-[var(--cb-radius-control)] bg-black/25 border border-[var(--cb-border-subtle)] flex flex-col">
+            {/* Header: Title & Actions */}
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--cb-border-subtle)] mb-4">
+              <div className="flex items-center gap-2">
+                <BarChart2 size={15} className="text-cyan-400" />
+                <span className="text-sm font-semibold text-white font-sans">
                   {matrixMsg?.title || "Confusion Matrix Heatmap"}
                 </span>
-                <span className="text-[10px] text-cyan-300 font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 font-medium">
-                  {nRows} × {nCols} Classes
-                </span>
+                {matrixMsg?.blockId && <BlockChip blockId={matrixMsg.blockId} />}
               </div>
 
-              <div className="flex items-center gap-2 font-mono text-[11px]">
-                <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold shadow-[0_0_8px_rgba(16,185,129,0.15)]">
-                  Accuracy: {accuracyPct.toFixed(1)}%
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-mono text-[var(--cb-text-muted)]">
+                  {nRows}×{nCols} Classes
                 </span>
-                <span className="px-2.5 py-0.5 rounded-lg bg-slate-800/80 border border-slate-700/80 text-slate-300">
-                  {totalSamples} Samples
-                </span>
-                {errorCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300">
-                    {errorCount} Errors
-                  </span>
-                )}
               </div>
             </div>
 
-            {/* Heatmap with X/Y Axes */}
-            <div className="flex flex-col items-center justify-center my-2 select-none">
-              {/* Top Axis: Predicted Label */}
-              <div className="text-[10px] uppercase font-bold tracking-wider text-cyan-400 mb-1.5 flex items-center gap-1.5 font-sans">
-                <span>Predicted Class (Output)</span>
-                <span className="text-cyan-500 text-xs">→</span>
+            {/* Heatmap Layout with Adjacent Labels */}
+            <div className="flex-1 flex flex-col items-center justify-center select-none py-2">
+              {/* Predicted Axis Label */}
+              <div className="text-[11px] font-bold text-cyan-400 mb-2 flex items-center gap-1.5 font-sans">
+                <span>Predicted Label →</span>
               </div>
 
-              {/* Matrix Layout with Left Axis (Actual Label) */}
-              <div className="flex items-center">
-                {/* Left Axis: Actual Label */}
-                <div className="flex items-center justify-center mr-3 -rotate-90 select-none">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-cyan-400 whitespace-nowrap font-sans">
-                    Actual Class (Truth)
+              <div className="flex items-start gap-3">
+                {/* Actual Axis Label */}
+                <div className="flex items-center pt-8">
+                  <span className="text-[11px] font-bold text-cyan-400 font-sans [writing-mode:vertical-lr] rotate-180">
+                    Actual Label →
                   </span>
                 </div>
 
-                {/* Grid with Column and Row Headers */}
+                {/* Matrix Grid */}
                 <div className="flex flex-col">
                   {/* Column Headers */}
                   <div
-                    className="grid gap-2 mb-2 ml-16"
+                    className="grid gap-2 mb-2 ml-20"
                     style={{
                       gridTemplateColumns: `repeat(${nCols}, minmax(72px, 88px))`,
                     }}
                   >
-                    {Array.from({ length: nCols }).map((_, cIdx) => (
+                    {classLabels.map((label, cIdx) => (
                       <div
                         key={`col-${cIdx}`}
-                        className="text-[10px] font-mono text-cyan-300/80 font-bold text-center py-1 rounded bg-white/[0.03] border border-white/5"
+                        className="text-[10px] font-mono text-cyan-300 font-medium text-center py-1 px-1 rounded bg-white/[0.04] border border-white/5 truncate"
+                        title={label}
                       >
-                        Pred {cIdx}
+                        {label}
                       </div>
                     ))}
                   </div>
 
                   {/* Rows */}
-                  {rawMatrix.map((row, rIdx) => (
-                    <div key={`row-${rIdx}`} className="flex items-center gap-2 mb-2">
-                      {/* Row Header */}
-                      <div className="w-14 text-[10px] font-mono text-cyan-300/80 font-bold text-right pr-2 shrink-0 py-2">
-                        Class {rIdx}
-                      </div>
+                  {rawMatrix.map((row, rIdx) => {
+                    const rowLabel = classLabels[rIdx] || `Class ${rIdx}`;
+                    return (
+                      <div key={`row-${rIdx}`} className="flex items-center gap-2 mb-2">
+                        {/* Row Header */}
+                        <div
+                          className="w-18 text-[10px] font-mono text-cyan-300 font-medium text-right pr-2 shrink-0 truncate py-2"
+                          title={rowLabel}
+                        >
+                          {rowLabel}
+                        </div>
 
-                      {/* Cells */}
-                      <div
-                        className="grid gap-2"
-                        style={{
-                          gridTemplateColumns: `repeat(${nCols}, minmax(72px, 88px))`,
-                        }}
-                      >
-                        {(row as unknown[]).map((val, cIdx) => {
-                          const num = Number(val) || 0;
-                          const isDiagonal = rIdx === cIdx;
-                          const intensity = maxCellVal > 0 ? num / maxCellVal : 0;
-                          const rSum = rowSums[rIdx] || 0;
-                          const rowPct = rSum > 0 ? ((num / rSum) * 100).toFixed(1) : "0.0";
+                        {/* Cells */}
+                        <div
+                          className="grid gap-2"
+                          style={{
+                            gridTemplateColumns: `repeat(${nCols}, minmax(72px, 88px))`,
+                          }}
+                        >
+                          {(row as unknown[]).map((val, cIdx) => {
+                            const num = Number(val) || 0;
+                            const isDiagonal = rIdx === cIdx;
+                            const intensity = maxCellVal > 0 ? num / maxCellVal : 0;
+                            const rSum = rowSums[rIdx] || 0;
+                            const rowPct = rSum > 0 ? ((num / rSum) * 100).toFixed(1) : "0.0";
 
-                          // Color gradient intensity
-                          const bgStyle = isDiagonal
-                            ? num > 0
+                            const bgStyle = isDiagonal
+                              ? num > 0
+                                ? {
+                                    backgroundColor: `rgba(16, 185, 129, ${0.18 + 0.65 * intensity})`,
+                                    borderColor: `rgba(52, 211, 153, ${0.35 + 0.5 * intensity})`,
+                                    boxShadow: num > 0 ? `0 0 12px rgba(16, 185, 129, ${0.15 * intensity})` : undefined,
+                                  }
+                                : {
+                                    backgroundColor: "rgba(15, 23, 42, 0.4)",
+                                    borderColor: "rgba(51, 65, 85, 0.3)",
+                                  }
+                              : num > 0
                               ? {
-                                  backgroundColor: `rgba(16, 185, 129, ${0.18 + 0.65 * intensity})`,
-                                  borderColor: `rgba(52, 211, 153, ${0.35 + 0.5 * intensity})`,
-                                  boxShadow: num > 0 ? `0 0 16px rgba(16, 185, 129, ${0.2 * intensity})` : undefined,
+                                  backgroundColor: `rgba(244, 63, 94, ${0.18 + 0.65 * intensity})`,
+                                  borderColor: `rgba(251, 113, 133, ${0.35 + 0.5 * intensity})`,
+                                  boxShadow: `0 0 12px rgba(244, 63, 94, ${0.15 * intensity})`,
                                 }
                               : {
                                   backgroundColor: "rgba(15, 23, 42, 0.4)",
                                   borderColor: "rgba(51, 65, 85, 0.3)",
-                                }
-                            : num > 0
-                            ? {
-                                backgroundColor: `rgba(244, 63, 94, ${0.18 + 0.65 * intensity})`,
-                                borderColor: `rgba(251, 113, 133, ${0.35 + 0.5 * intensity})`,
-                                boxShadow: `0 0 16px rgba(244, 63, 94, ${0.2 * intensity})`,
-                              }
-                            : {
-                                backgroundColor: "rgba(15, 23, 42, 0.4)",
-                                borderColor: "rgba(51, 65, 85, 0.3)",
-                              };
+                                };
 
-                          const textClass = isDiagonal
-                            ? num > 0
-                              ? "text-emerald-100 font-bold"
-                              : "text-slate-500 font-normal"
-                            : num > 0
-                            ? "text-rose-100 font-bold"
-                            : "text-slate-600 font-normal";
+                            const textClass = isDiagonal
+                              ? num > 0
+                                ? "text-emerald-100 font-bold"
+                                : "text-slate-500 font-normal"
+                              : num > 0
+                              ? "text-rose-100 font-bold"
+                              : "text-slate-600 font-normal";
 
-                          return (
-                            <div
-                              key={`${rIdx}-${cIdx}`}
-                              style={bgStyle}
-                              className={`p-3 rounded-xl border flex flex-col items-center justify-center transition-all duration-200 hover:scale-105 hover:z-10 cursor-default shadow-sm ${textClass}`}
-                              title={`Actual Class ${rIdx} → Predicted Class ${cIdx}: ${num} sample(s) (${rowPct}% of actual Class ${rIdx})`}
-                            >
-                              <span className="text-lg leading-tight font-mono">
-                                {num % 1 === 0 ? num : num.toFixed(3)}
-                              </span>
-                              <div className="flex items-center gap-1 mt-1 text-[9px] opacity-80 font-mono">
-                                <span className="font-semibold">{rowPct}%</span>
-                                <span className="opacity-40">[{rIdx},{cIdx}]</span>
+                            return (
+                              <div
+                                key={`${rIdx}-${cIdx}`}
+                                style={bgStyle}
+                                className={`p-2.5 rounded-[var(--cb-radius-control)] border flex flex-col items-center justify-center transition-all duration-150 hover:scale-105 cursor-default ${textClass}`}
+                                title={`Actual: ${rowLabel} → Predicted: ${classLabels[cIdx] || cIdx}: ${num} sample(s)`}
+                              >
+                                <span className="text-base font-mono leading-none">
+                                  {num}
+                                </span>
+                                <span className="text-[9px] opacity-75 mt-1 font-mono">
+                                  {rowPct}%
+                                </span>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
-            {/* Heatmap Legend & Color Scale */}
-            <div className="mt-4 pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-4 text-[11px] font-sans text-slate-400">
-              <div className="flex items-center gap-5">
+            {/* Heatmap Legend */}
+            <div className="mt-3 pt-3 border-t border-[var(--cb-border-subtle)] flex flex-wrap items-center justify-between gap-3 text-[11px] font-sans text-[var(--cb-text-muted)]">
+              <div className="flex items-center gap-4">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded bg-emerald-500/40 border border-emerald-400/60 shadow-[0_0_6px_rgba(16,185,129,0.3)]" />
-                  <span className="text-slate-300 font-medium">Correct Predictions (Diagonal)</span>
+                  <span className="w-2.5 h-2.5 rounded bg-emerald-500/60 border border-emerald-400" />
+                  <span className="text-[var(--cb-text-secondary)]">Correct</span>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded bg-rose-500/40 border border-rose-400/60 shadow-[0_0_6px_rgba(244,63,94,0.3)]" />
-                  <span className="text-slate-300 font-medium">Misclassifications</span>
+                  <span className="w-2.5 h-2.5 rounded bg-rose-500/60 border border-rose-400" />
+                  <span className="text-[var(--cb-text-secondary)]">Misclassified</span>
                 </span>
               </div>
-
-              {/* Heatmap Intensity Indicator */}
-              <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+              <div className="flex items-center gap-1.5 text-[10px] font-mono">
                 <span>0</span>
-                <div className="w-24 h-2 rounded-full bg-gradient-to-r from-slate-800 via-emerald-600 to-emerald-400 border border-white/10" />
+                <div className="w-16 h-1.5 rounded-full bg-gradient-to-r from-slate-800 to-emerald-400" />
                 <span>{maxCellVal}</span>
-                <span className="text-slate-500 font-sans ml-1">(Intensity)</span>
               </div>
             </div>
 
-            {/* Binary Diagnostics Strip for 2x2 Classifications */}
+            {/* Binary Diagnostics Strip if 2x2 */}
             {isBinary && (
-              <div className="mt-4 pt-3 border-t border-white/10 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-left font-sans">
-                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                  <div className="text-[10px] text-slate-400 uppercase font-semibold">True Positives (TP)</div>
-                  <div className="text-sm font-bold text-emerald-300 font-mono mt-0.5">{tp}</div>
-                  <div className="text-[9.5px] text-slate-500">Class 1 identified</div>
+              <div className="mt-3 pt-2.5 border-t border-[var(--cb-border-subtle)] grid grid-cols-2 sm:grid-cols-4 gap-2 text-left font-sans">
+                <div className="p-2 rounded bg-white/[0.02] border border-white/5">
+                  <div className="text-[9.5px] text-[var(--cb-text-muted)] uppercase">Precision</div>
+                  <div className="text-xs font-bold text-cyan-300 font-mono mt-0.5">{precision.toFixed(1)}%</div>
                 </div>
-                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                  <div className="text-[10px] text-slate-400 uppercase font-semibold">True Negatives (TN)</div>
-                  <div className="text-sm font-bold text-emerald-300 font-mono mt-0.5">{tn}</div>
-                  <div className="text-[9.5px] text-slate-500">Class 0 rejected</div>
+                <div className="p-2 rounded bg-white/[0.02] border border-white/5">
+                  <div className="text-[9.5px] text-[var(--cb-text-muted)] uppercase">Recall</div>
+                  <div className="text-xs font-bold text-cyan-300 font-mono mt-0.5">{recall.toFixed(1)}%</div>
                 </div>
-                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Precision / PPV</div>
-                  <div className="text-sm font-bold text-cyan-300 font-mono mt-0.5">{precision.toFixed(1)}%</div>
-                  <div className="text-[9.5px] text-slate-500">TP / (TP + FP)</div>
+                <div className="p-2 rounded bg-white/[0.02] border border-white/5">
+                  <div className="text-[9.5px] text-[var(--cb-text-muted)] uppercase">Specificity</div>
+                  <div className="text-xs font-bold text-teal-300 font-mono mt-0.5">{specificity.toFixed(1)}%</div>
                 </div>
-                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Recall / Sensitivity</div>
-                  <div className="text-sm font-bold text-cyan-300 font-mono mt-0.5">{recall.toFixed(1)}%</div>
-                  <div className="text-[9.5px] text-slate-500">TP / (TP + FN)</div>
-                </div>
-                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Specificity (TNR)</div>
-                  <div className="text-sm font-bold text-teal-300 font-mono mt-0.5">{specificity.toFixed(1)}%</div>
-                  <div className="text-[9.5px] text-slate-500">TN / (TN + FP)</div>
-                </div>
-                <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                  <div className="text-[10px] text-slate-400 uppercase font-semibold">F1-Score</div>
-                  <div className="text-sm font-bold text-indigo-300 font-mono mt-0.5">{f1.toFixed(1)}%</div>
-                  <div className="text-[9.5px] text-slate-500">Harmonic Mean</div>
+                <div className="p-2 rounded bg-white/[0.02] border border-white/5">
+                  <div className="text-[9.5px] text-[var(--cb-text-muted)] uppercase">F1-Score</div>
+                  <div className="text-xs font-bold text-indigo-300 font-mono mt-0.5">{f1.toFixed(1)}%</div>
                 </div>
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Other Plotly / Feature Importance Images */}
-      {plotImages.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {plotImages.map((plot, idx) => (
+        {/* Other Generated Visual Plots */}
+        {plotImages.map((plot, idx) => {
+          const isExpanded = expandedPlotIdx === idx;
+          const plotTitle = plot.title || "Plot Output";
+
+          return (
             <div
               key={idx}
-              className="p-3.5 rounded-2xl border border-slate-800 bg-[#090d18]/90 flex flex-col shadow-lg"
+              className={`p-4 rounded-[var(--cb-radius-control)] bg-black/25 border border-[var(--cb-border-subtle)] flex flex-col ${
+                isExpanded ? "fixed inset-8 z-50 bg-[#080c16]/95 border-cyan-500/40 shadow-2xl" : ""
+              }`}
             >
-              {plot.title && (
-                <span className="text-xs font-semibold text-slate-200 block mb-2 font-sans border-b border-white/5 pb-1.5">
-                  {plot.title}
-                </span>
-              )}
-              <div className="flex-1 flex items-center justify-center overflow-hidden p-2">
-                {plot.data.startsWith("{") ? (
-                  <pre className="text-[11px] text-indigo-300 font-mono bg-slate-900/80 p-2.5 rounded-xl max-h-48 overflow-auto w-full border border-white/5">
-                    {plot.data}
-                  </pre>
-                ) : plot.format === "svg" || plot.data.startsWith("<svg") ? (
+              {/* Header */}
+              <div className="flex items-center justify-between pb-2 border-b border-[var(--cb-border-subtle)] mb-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} className="text-cyan-400" />
+                  <span className="text-xs font-semibold text-white font-sans">
+                    {plotTitle}
+                  </span>
+                  {plot.blockId && <BlockChip blockId={plot.blockId} />}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleDownloadImage(plot.data, plotTitle)}
+                    className="p-1 rounded text-[var(--cb-text-muted)] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                    title="Export PNG"
+                  >
+                    <Download size={13} />
+                  </button>
+                  <button
+                    onClick={() => setExpandedPlotIdx(isExpanded ? null : idx)}
+                    className="p-1 rounded text-[var(--cb-text-muted)] hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                    title={isExpanded ? "Minimize" : "Expand"}
+                  >
+                    {isExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Plot Image/Content */}
+              <div className="flex-1 flex items-center justify-center overflow-hidden p-2 min-h-[220px]">
+                {plot.format === "svg" || plot.data.startsWith("<svg") ? (
                   <div
-                    className="max-h-56 w-full flex items-center justify-center overflow-auto"
+                    className="max-h-72 w-full flex items-center justify-center overflow-auto"
                     dangerouslySetInnerHTML={{ __html: plot.data }}
                   />
                 ) : (
@@ -375,16 +492,15 @@ export default function PlotlyRenderer({
                         ? plot.data
                         : `data:image/png;base64,${plot.data}`
                     }
-                    alt={plot.title || "Plot"}
-                    className="max-h-56 mx-auto rounded-lg object-contain"
+                    alt={plotTitle}
+                    className="max-h-72 w-auto max-w-full rounded object-contain"
                   />
                 )}
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 }
-

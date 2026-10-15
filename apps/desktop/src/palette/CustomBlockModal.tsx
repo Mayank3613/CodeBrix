@@ -1,6 +1,27 @@
-import { useState, useEffect } from "react";
-import type { BlockDefinition, PortDefinition, PortType, BlockConfigField, BlockCategory } from "@codebrix/types";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
+import type {
+  BlockDefinition,
+  PortDefinition,
+  PortType,
+  BlockConfigField,
+  BlockCategory,
+} from "@codebrix/types";
 import { useCustomBlockStore } from "../stores/customBlockStore";
+import { blockRegistry } from "../registry";
+import Select, { type SelectOption } from "../components/common/Select";
+import {
+  Boxes,
+  X,
+  Plus,
+  Trash2,
+  Code2,
+  Layers,
+  Sliders,
+  Check,
+  AlertCircle,
+  FileUp,
+} from "lucide-react";
 
 interface CustomBlockModalProps {
   isOpen: boolean;
@@ -10,43 +31,51 @@ interface CustomBlockModalProps {
   onBlockSaved?: (block: BlockDefinition) => void;
 }
 
-const PORT_TYPES: PortType[] = [
-  "dataframe",
-  "series",
-  "model",
-  "number",
-  "string",
-  "scalar",
-  "boolean",
-  "array",
-  "file",
-  "figure",
-  "dict",
-  "any",
+const PORT_TYPE_OPTIONS: SelectOption[] = [
+  { value: "dataframe", label: "DataFrame (tabular)" },
+  { value: "series", label: "Series (1D column)" },
+  { value: "model", label: "Model (estimator)" },
+  { value: "number", label: "Number (float/int)" },
+  { value: "string", label: "String (text)" },
+  { value: "scalar", label: "Scalar (value)" },
+  { value: "boolean", label: "Boolean (true/false)" },
+  { value: "array", label: "Array (list/vector)" },
+  { value: "file", label: "File (path)" },
+  { value: "figure", label: "Figure (plot)" },
+  { value: "dict", label: "Dict (mapping)" },
+  { value: "any", label: "Any (flexible)" },
 ];
 
-const CATEGORIES: Array<{ value: BlockCategory; label: string }> = [
+const CATEGORY_OPTIONS: SelectOption[] = [
   { value: "custom", label: "Custom (User-Defined)" },
-  { value: "data", label: "Data I/O & Storage" },
-  { value: "preprocessing", label: "Preprocessing & Cleaning" },
+  { value: "data", label: "Data Ingestion & Sinks" },
+  { value: "preprocessing", label: "Data Preprocessing" },
   { value: "ml", label: "Machine Learning" },
   { value: "evaluation", label: "Evaluation & Metrics" },
-  { value: "visualization", label: "Visualization" },
-  { value: "core", label: "Core Control" },
+  { value: "visualization", label: "Visualizations & Plots" },
+  { value: "core", label: "Core & Utility" },
+];
+
+const PARAM_TYPE_OPTIONS: SelectOption[] = [
+  { value: "string", label: "string" },
+  { value: "number", label: "number" },
+  { value: "boolean", label: "boolean" },
+  { value: "select", label: "select" },
+  { value: "slider", label: "slider" },
+  { value: "file", label: "file" },
 ];
 
 const CODE_TEMPLATES = {
   transform: `# ── Custom Data Transform ──
-# Incoming inputs: inputs["dataset_in"] (pandas.DataFrame)
-# Config values: config["method"]
+# Inputs: inputs["dataset_in"] (pandas.DataFrame)
+# Config: config["method"]
 df = inputs.get("dataset_in", pd.DataFrame()).copy()
 
-# Your custom data transformation logic here:
 print(f"Processing DataFrame with {len(df)} rows...")
 outputs["dataset_out"] = df
 `,
   model: `# ── Custom ML Model ──
-# Incoming inputs: inputs["train_data_in"] (pandas.DataFrame)
+# Inputs: inputs["train_data_in"] (pandas.DataFrame)
 df_train = inputs.get("train_data_in", pd.DataFrame()).copy()
 X = df_train.iloc[:, :-1]
 y = df_train.iloc[:, -1]
@@ -68,8 +97,8 @@ outputs["score_out"] = score
 print(f"Evaluated custom metric: {score:.4f}")
 `,
   generic: `# ── Custom Script Execution ──
-# Access any port via inputs["port_id"]
-# Assign outputs via outputs["port_id"] = result
+# Inputs: inputs["data_in"]
+# Outputs: outputs["data_out"]
 val = inputs.get("data_in")
 outputs["data_out"] = val
 `,
@@ -91,7 +120,8 @@ export default function CustomBlockModal({
   const [version, setVersion] = useState("0.1.0");
   const [description, setDescription] = useState("");
   const [author, setAuthor] = useState("");
-  const [tags, setTags] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
 
   const [inputs, setInputs] = useState<PortDefinition[]>([
     { id: "dataset_in", name: "Input Data", type: "dataframe", direction: "input", required: true },
@@ -107,18 +137,24 @@ export default function CustomBlockModal({
   ]);
 
   const [pythonCode, setPythonCode] = useState(CODE_TEMPLATES.transform);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isImportJsonOpen, setIsImportJsonOpen] = useState(false);
   const [importJsonText, setImportJsonText] = useState("");
+  const [idManuallyEdited, setIdManuallyEdited] = useState(false);
+
+  const modalRef = useRef<HTMLDivElement>(null);
+  const firstFocusableRef = useRef<HTMLInputElement>(null);
 
   const addCustomBlock = useCustomBlockStore((s) => s.addCustomBlock);
   const updateCustomBlock = useCustomBlockStore((s) => s.updateCustomBlock);
   const getCustomBlock = useCustomBlockStore((s) => s.getCustomBlock);
   const getPythonCode = useCustomBlockStore((s) => s.getPythonCode);
 
-  // Populate state if editing existing block or using a template
+  // Initialize or reset form state on open
   useEffect(() => {
+    if (!isOpen) return;
+
     if (editBlockId) {
+      setIdManuallyEdited(true);
       const existing = getCustomBlock(editBlockId);
       if (existing) {
         setName(existing.name);
@@ -127,7 +163,7 @@ export default function CustomBlockModal({
         setVersion(existing.version || "0.1.0");
         setDescription(existing.description || "");
         setAuthor(existing.author || "");
-        setTags((existing.tags || []).join(", "));
+        setTags(existing.tags || []);
         setInputs([...existing.inputs]);
         setOutputs([...existing.outputs]);
 
@@ -147,68 +183,113 @@ export default function CustomBlockModal({
           setPythonCode(code);
         }
       }
-    } else if (initialTemplate === "model") {
-      setName("Custom ML Classifier");
-      setId("custom.my_classifier");
-      setCategory("ml");
-      setVersion("0.1.0");
-      setDescription("Custom supervised classification model using ExtraTreesClassifier.");
-      setAuthor("");
-      setTags("custom, ml, classifier, supervised");
-      setInputs([
-        { id: "train_data_in", name: "Train Data", type: "dataframe", direction: "input", required: true },
-      ]);
-      setOutputs([
-        { id: "model_out", name: "Trained Model", type: "model", direction: "output" },
-      ]);
-      setParams([
-        { key: "n_estimators", label: "Estimators", type: "number", defaultValue: "100" },
-      ]);
-      setPythonCode(CODE_TEMPLATES.model);
-    } else if (initialTemplate === "metric") {
-      setName("Custom Metric Evaluator");
-      setId("custom.my_metric");
-      setCategory("evaluation");
-      setVersion("0.1.0");
-      setDescription("Custom evaluation metric computing weighted F1-Score or custom loss.");
-      setAuthor("");
-      setTags("custom, eval, metric, score");
-      setInputs([
-        { id: "predictions_in", name: "Predictions", type: "series", direction: "input", required: true },
-        { id: "ground_truth_in", name: "Ground Truth", type: "series", direction: "input", required: true },
-      ]);
-      setOutputs([
-        { id: "score_out", name: "Score", type: "number", direction: "output" },
-      ]);
-      setParams([]);
-      setPythonCode(CODE_TEMPLATES.metric);
     } else {
-      // Defaults for new generic/transform block
-      setName(initialTemplate === "transform" ? "Custom Data Transform" : "");
-      setId(initialTemplate === "transform" ? "custom.data_transform" : "");
-      setCategory(initialTemplate === "transform" ? "preprocessing" : "custom");
-      setVersion("0.1.0");
-      setDescription(initialTemplate === "transform" ? "Transforms input DataFrame and outputs processed dataset." : "");
-      setAuthor("");
-      setTags("custom, ml, data");
-      setInputs([
-        { id: "dataset_in", name: "Input Data", type: "dataframe", direction: "input", required: true },
-      ]);
-      setOutputs([
-        { id: "dataset_out", name: "Output Data", type: "dataframe", direction: "output" },
-      ]);
-      setParams([
-        { key: "method", label: "Method / Mode", type: "string", defaultValue: "default" },
-      ]);
-      setPythonCode(CODE_TEMPLATES.transform);
+      setIdManuallyEdited(false);
+      if (initialTemplate === "model") {
+        setName("Custom ML Classifier");
+        setId("custom.my_classifier");
+        setCategory("ml");
+        setVersion("0.1.0");
+        setDescription("Custom supervised classification model using ExtraTreesClassifier.");
+        setAuthor("");
+        setTags(["ml", "classifier", "supervised"]);
+        setInputs([
+          { id: "train_data_in", name: "Train Data", type: "dataframe", direction: "input", required: true },
+        ]);
+        setOutputs([
+          { id: "model_out", name: "Trained Model", type: "model", direction: "output" },
+        ]);
+        setParams([
+          { key: "n_estimators", label: "Estimators", type: "number", defaultValue: "100" },
+        ]);
+        setPythonCode(CODE_TEMPLATES.model);
+      } else if (initialTemplate === "metric") {
+        setName("Custom Metric Evaluator");
+        setId("custom.my_metric");
+        setCategory("evaluation");
+        setVersion("0.1.0");
+        setDescription("Custom evaluation metric computing weighted F1-Score or custom loss.");
+        setAuthor("");
+        setTags(["eval", "metric", "score"]);
+        setInputs([
+          { id: "predictions_in", name: "Predictions", type: "series", direction: "input", required: true },
+          { id: "ground_truth_in", name: "Ground Truth", type: "series", direction: "input", required: true },
+        ]);
+        setOutputs([
+          { id: "score_out", name: "Score", type: "number", direction: "output" },
+        ]);
+        setParams([]);
+        setPythonCode(CODE_TEMPLATES.metric);
+      } else {
+        setName(initialTemplate === "transform" ? "Custom Data Transform" : "");
+        setId(initialTemplate === "transform" ? "custom.data_transform" : "");
+        setCategory(initialTemplate === "transform" ? "preprocessing" : "custom");
+        setVersion("0.1.0");
+        setDescription(initialTemplate === "transform" ? "Transforms input DataFrame and outputs processed dataset." : "");
+        setAuthor("");
+        setTags([]);
+        setInputs([
+          { id: "dataset_in", name: "Input Data", type: "dataframe", direction: "input", required: true },
+        ]);
+        setOutputs([
+          { id: "dataset_out", name: "Output Data", type: "dataframe", direction: "output" },
+        ]);
+        setParams([
+          { key: "method", label: "Method / Mode", type: "string", defaultValue: "default" },
+        ]);
+        setPythonCode(CODE_TEMPLATES.transform);
+      }
     }
-    setErrorMessage(null);
-  }, [editBlockId, initialTemplate, isOpen, getCustomBlock, getPythonCode]);
+    setActiveTab("general");
+    setIsImportJsonOpen(false);
+  }, [isOpen, editBlockId, initialTemplate, getCustomBlock, getPythonCode]);
 
-  // Auto-slugify ID when name changes (only in create mode)
+  // Focus trap & Escape key listener
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+
+      if (e.key === "Tab" && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    const timer = setTimeout(() => {
+      firstFocusableRef.current?.focus();
+    }, 50);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      clearTimeout(timer);
+    };
+  }, [isOpen, onClose]);
+
+  // Auto-slugify ID when name changes (only in create mode unless user manually edited ID)
   const handleNameChange = (val: string) => {
     setName(val);
-    if (!editBlockId) {
+    if (!editBlockId && !idManuallyEdited) {
       const slug = val
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
@@ -217,7 +298,50 @@ export default function CustomBlockModal({
     }
   };
 
-  // Add / Remove Ports
+  // Validation issues computation for live draft status
+  const validationIssues = useCallback((): string[] => {
+    const issues: string[] = [];
+    const cleanName = name.trim();
+    const cleanId = id.trim();
+
+    if (!cleanName) issues.push("Display name is required");
+    if (!cleanId) {
+      issues.push("Block ID is required");
+    } else {
+      // Check duplicate ID against registry and customBlockStore
+      const existingInRegistry = blockRegistry.get(cleanId);
+      const existingInStore = getCustomBlock(cleanId);
+      if (
+        (!editBlockId && (existingInRegistry || existingInStore)) ||
+        (editBlockId && cleanId !== editBlockId && (existingInRegistry || existingInStore))
+      ) {
+        issues.push(`ID "${cleanId}" already exists`);
+      }
+    }
+
+    if (inputs.length === 0 && outputs.length === 0) {
+      issues.push("At least 1 port (input or output) is required");
+    }
+
+    const portIds = new Set<string>();
+    for (const inp of inputs) {
+      if (!inp.id.trim()) issues.push("All input ports must have an ID");
+      else if (portIds.has(inp.id.trim())) issues.push(`Duplicate port ID: "${inp.id}"`);
+      portIds.add(inp.id.trim());
+    }
+    for (const out of outputs) {
+      if (!out.id.trim()) issues.push("All output ports must have an ID");
+      else if (portIds.has(out.id.trim())) issues.push(`Duplicate port ID: "${out.id}"`);
+      portIds.add(out.id.trim());
+    }
+
+    return issues;
+  }, [name, id, editBlockId, inputs, outputs, getCustomBlock]);
+
+  const issues = validationIssues();
+  const idError = issues.find((i) => i.includes("Block ID") || i.includes("already exists"));
+
+  // Port management
   const handleAddInput = () => {
     const nextIdx = inputs.length + 1;
     setInputs([
@@ -254,7 +378,7 @@ export default function CustomBlockModal({
     setOutputs(updated);
   };
 
-  // Add / Remove Config Parameters
+  // Config parameters
   const handleAddParam = () => {
     const nextIdx = params.length + 1;
     setParams([
@@ -273,61 +397,33 @@ export default function CustomBlockModal({
     setParams(updated);
   };
 
-  // Save Block
+  // Tags chip input
+  const handleAddTag = () => {
+    const trimmed = tagInput.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed]);
+    }
+    setTagInput("");
+  };
+
+  const handleRemoveTag = (t: string) => {
+    setTags(tags.filter((item) => item !== t));
+  };
+
+  // Save handler
   const handleSave = () => {
-    setErrorMessage(null);
+    if (issues.length > 0) {
+      if (issues.some((i) => i.includes("name") || i.includes("ID"))) {
+        setActiveTab("general");
+      } else if (issues.some((i) => i.includes("port"))) {
+        setActiveTab("ports");
+      }
+      return;
+    }
 
     const cleanName = name.trim();
     const cleanId = id.trim();
 
-    if (!cleanName) {
-      setErrorMessage("Please enter a block display name.");
-      setActiveTab("general");
-      return;
-    }
-
-    if (!cleanId) {
-      setErrorMessage("Please enter a unique Block ID.");
-      setActiveTab("general");
-      return;
-    }
-
-    if (inputs.length === 0 && outputs.length === 0) {
-      setErrorMessage("The block must declare at least one input or output port.");
-      setActiveTab("ports");
-      return;
-    }
-
-    // Check unique port IDs
-    const portIds = new Set<string>();
-    for (const inp of inputs) {
-      if (!inp.id.trim()) {
-        setErrorMessage("All input ports must have a non-empty ID.");
-        setActiveTab("ports");
-        return;
-      }
-      if (portIds.has(inp.id)) {
-        setErrorMessage(`Duplicate port ID: "${inp.id}". Port IDs must be unique.`);
-        setActiveTab("ports");
-        return;
-      }
-      portIds.add(inp.id);
-    }
-    for (const out of outputs) {
-      if (!out.id.trim()) {
-        setErrorMessage("All output ports must have a non-empty ID.");
-        setActiveTab("ports");
-        return;
-      }
-      if (portIds.has(out.id)) {
-        setErrorMessage(`Duplicate port ID: "${out.id}". Port IDs must be unique.`);
-        setActiveTab("ports");
-        return;
-      }
-      portIds.add(out.id);
-    }
-
-    // Build configSchema
     const configSchema: Record<string, BlockConfigField> = {};
     for (const p of params) {
       const pKey = p.key.trim().replace(/[^a-zA-Z0-9_]/g, "_");
@@ -353,7 +449,6 @@ export default function CustomBlockModal({
       };
     }
 
-    // Embed pythonCode into configSchema default if desired
     if (pythonCode.trim()) {
       configSchema["customCode"] = {
         name: "customCode",
@@ -370,10 +465,7 @@ export default function CustomBlockModal({
       version: version.trim() || "0.1.0",
       description: description.trim() || "User defined custom block",
       author: author.trim() || "User",
-      tags: tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
+      tags,
       inputs,
       outputs,
       configSchema,
@@ -392,56 +484,37 @@ export default function CustomBlockModal({
     onClose();
   };
 
-  // Import JSON handler
-  const handleImportJson = () => {
-    try {
-      const parsed = JSON.parse(importJsonText);
-      const def: BlockDefinition = parsed.definition || parsed;
-
-      if (!def.id || !def.name) {
-        throw new Error("Missing 'id' or 'name' in JSON.");
-      }
-
-      setName(def.name);
-      setId(def.id);
-      setCategory(def.category || "custom");
-      setVersion(def.version || "0.1.0");
-      setDescription(def.description || "");
-      setAuthor(def.author || "");
-      setTags((def.tags || []).join(", "));
-      if (def.inputs) setInputs(def.inputs);
-      if (def.outputs) setOutputs(def.outputs);
-
-      if (parsed.pythonCode) {
-        setPythonCode(parsed.pythonCode);
-      } else if (def.configSchema?.customCode?.defaultValue) {
-        setPythonCode(String(def.configSchema.customCode.defaultValue));
-      }
-
-      setIsImportJsonOpen(false);
-      setErrorMessage(null);
-    } catch (err) {
-      setErrorMessage(`Invalid JSON: ${(err as Error).message}`);
-    }
-  };
+  const totalPortsCount = inputs.length + outputs.length;
+  const totalParamsCount = params.length;
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-      <div className="bg-[#0b0e15]/95 border border-white/10 rounded-2xl w-full max-w-2xl shadow-[0_24px_60px_-10px_rgba(0,0,0,0.85),inset_0_1px_0_0_rgba(255,255,255,0.1)] flex flex-col max-h-[90vh] overflow-hidden text-slate-100 animate-in fade-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-black/40">
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="custom-block-modal-title"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-[4px] p-4 select-none animate-in fade-in duration-150"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={modalRef}
+        className="w-full max-w-2xl bg-[var(--cb-elevation-panel)] border border-[var(--cb-border-strong)] rounded-[var(--cb-radius-panel)] shadow-[var(--cb-shadow-overlay)] flex flex-col max-h-[90vh] overflow-hidden text-[var(--cb-text-primary)] animate-in zoom-in-95 duration-150"
+      >
+        {/* ── Header ── */}
+        <div className="h-14 px-6 border-b border-[var(--cb-border-subtle)] flex items-center justify-between shrink-0 bg-[var(--cb-elevation-raised)]">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 via-orange-600 to-rose-600 border border-amber-300/30 flex items-center justify-center text-white text-xs font-mono font-bold shadow-[0_0_12px_rgba(245,158,11,0.4)]">
-              CB
+            <div className="w-8 h-8 rounded-[var(--cb-radius-control)] bg-[var(--cb-accent-subtle)] border border-[var(--cb-accent-border)] flex items-center justify-center text-[var(--cb-accent)] shrink-0">
+              <Boxes size={18} />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white tracking-tight">
-                {editBlockId ? "Edit Custom Block" : "Create Custom Block Studio"}
+              <h2 id="custom-block-modal-title" className="text-[13px] font-semibold text-[var(--cb-text-primary)]">
+                {editBlockId ? "Edit Custom Block" : "Create Custom Block"}
               </h2>
-              <p className="text-[11px] text-slate-400">
-                Design custom ML nodes with typed ports, properties, and Python code
+              <p className="text-[11px] text-[var(--cb-text-muted)]">
+                Define typed ports, runtime properties, and executable Python logic
               </p>
             </div>
           </div>
@@ -449,184 +522,250 @@ export default function CustomBlockModal({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsImportJsonOpen(!isImportJsonOpen)}
-              className="text-[11px] px-3 py-1 rounded-lg bg-black/40 hover:bg-white/10 text-slate-300 border border-white/10 transition-colors"
+              className="h-7 px-2.5 rounded-[var(--cb-radius-control)] bg-white/[0.04] hover:bg-white/[0.08] text-[var(--cb-text-secondary)] hover:text-white border border-[var(--cb-border-subtle)] text-[11px] flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              Import JSON
+              <FileUp size={12} />
+              <span>Import JSON</span>
             </button>
             <button
               onClick={onClose}
-              className="w-7 h-7 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors text-xs"
+              className="w-7 h-7 rounded-[var(--cb-radius-control)] text-[var(--cb-text-muted)] hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors cursor-pointer"
+              aria-label="Close dialog"
             >
-              ×
+              <X size={14} />
             </button>
           </div>
         </div>
 
-        {/* JSON Import Drawer */}
+        {/* ── JSON Import Drawer ── */}
         {isImportJsonOpen && (
-          <div className="p-4 bg-slate-950 border-b border-slate-800 space-y-2">
-            <div className="flex items-center justify-between text-xs text-slate-300 font-medium">
-              <span>Paste Custom Block JSON:</span>
+          <div className="p-3 bg-[var(--cb-elevation-app)] border-b border-[var(--cb-border-subtle)] space-y-2">
+            <div className="flex items-center justify-between text-[11px] text-[var(--cb-text-secondary)] font-medium">
+              <span>Paste Block Definition JSON:</span>
               <button
                 onClick={() => setIsImportJsonOpen(false)}
-                className="text-[10px] text-slate-500 hover:text-slate-300"
+                className="text-[10px] text-[var(--cb-text-muted)] hover:text-white cursor-pointer"
               >
                 Close
               </button>
             </div>
             <textarea
-              rows={4}
+              rows={3}
               value={importJsonText}
               onChange={(e) => setImportJsonText(e.target.value)}
-              placeholder='{ "definition": { "id": "custom.my_block", "name": "My Block", ... } }'
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500"
+              placeholder='{ "id": "custom.my_block", "name": "My Block", "category": "ml", ... }'
+              className="w-full bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] rounded-[var(--cb-radius-control)] p-2 text-[11px] font-mono text-[var(--cb-text-primary)] focus:border-[var(--cb-accent)] outline-none"
             />
             <button
-              onClick={handleImportJson}
-              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-medium transition-colors"
+              onClick={() => {
+                try {
+                  const parsed = JSON.parse(importJsonText);
+                  const def: BlockDefinition = parsed.definition || parsed;
+                  if (def.name) setName(def.name);
+                  if (def.id) setId(def.id);
+                  if (def.category) setCategory(def.category);
+                  if (def.version) setVersion(def.version);
+                  if (def.description) setDescription(def.description);
+                  if (def.author) setAuthor(def.author);
+                  if (def.tags) setTags(def.tags);
+                  if (def.inputs) setInputs(def.inputs);
+                  if (def.outputs) setOutputs(def.outputs);
+                  if (parsed.pythonCode) setPythonCode(parsed.pythonCode);
+                  setIsImportJsonOpen(false);
+                } catch {
+                  // ignore
+                }
+              }}
+              className="h-7 px-3 bg-[var(--cb-accent)] hover:bg-[var(--cb-accent-hover)] text-white text-[11px] font-medium rounded-[var(--cb-radius-control)] transition-colors cursor-pointer"
             >
               Load into Form
             </button>
           </div>
         )}
 
-        {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-800 px-6 bg-slate-950/30 text-xs font-medium">
+        {/* ── Navigation Tabs ── */}
+        <div className="flex border-b border-[var(--cb-border-subtle)] px-6 bg-[var(--cb-elevation-raised)] text-[12px] font-medium shrink-0">
           <button
             onClick={() => setActiveTab("general")}
-            className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+            className={`h-9 px-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${
               activeTab === "general"
-                ? "border-indigo-500 text-indigo-400 font-semibold"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-[var(--cb-accent)] text-[var(--cb-accent)] font-semibold"
+                : "border-transparent text-[var(--cb-text-secondary)] hover:text-white"
             }`}
           >
-            General
+            <Layers size={13} />
+            <span>General</span>
           </button>
+
           <button
             onClick={() => setActiveTab("ports")}
-            className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+            className={`h-9 px-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${
               activeTab === "ports"
-                ? "border-indigo-500 text-indigo-400 font-semibold"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-[var(--cb-accent)] text-[var(--cb-accent)] font-semibold"
+                : "border-transparent text-[var(--cb-text-secondary)] hover:text-white"
             }`}
           >
-            Ports ({inputs.length + outputs.length})
+            <Boxes size={13} />
+            <span>Ports</span>
+            {totalPortsCount > 0 && (
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/10 text-[var(--cb-text-muted)]">
+                {totalPortsCount}
+              </span>
+            )}
           </button>
+
           <button
             onClick={() => setActiveTab("params")}
-            className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+            className={`h-9 px-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${
               activeTab === "params"
-                ? "border-indigo-500 text-indigo-400 font-semibold"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-[var(--cb-accent)] text-[var(--cb-accent)] font-semibold"
+                : "border-transparent text-[var(--cb-text-secondary)] hover:text-white"
             }`}
           >
-            Parameters ({params.length})
+            <Sliders size={13} />
+            <span>Parameters</span>
+            {totalParamsCount > 0 && (
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/10 text-[var(--cb-text-muted)]">
+                {totalParamsCount}
+              </span>
+            )}
           </button>
+
           <button
             onClick={() => setActiveTab("code")}
-            className={`py-2.5 px-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+            className={`h-9 px-3 border-b-2 transition-colors flex items-center gap-1.5 cursor-pointer ${
               activeTab === "code"
-                ? "border-indigo-500 text-indigo-400 font-semibold"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-[var(--cb-accent)] text-[var(--cb-accent)] font-semibold"
+                : "border-transparent text-[var(--cb-text-secondary)] hover:text-white"
             }`}
           >
-            Python Code
+            <Code2 size={13} />
+            <span>Python Code</span>
           </button>
         </div>
 
-        {/* Tab Content */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-4">
-          {errorMessage && (
-            <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-lg text-rose-300 text-xs flex items-center gap-2">
-              <span className="font-bold text-rose-400">!</span>
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
+        {/* ── Form Body: 16px Vertical Rhythm & 32px Shared Inputs ── */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-4 text-[12px] select-text">
           {/* TAB 1: GENERAL */}
           {activeTab === "general" && (
-            <div className="space-y-4 text-xs">
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-300">Block Name *</label>
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-medium text-[var(--cb-text-secondary)]">
+                    Display Name <span className="text-[var(--cb-accent)]">*</span>
+                  </label>
                   <input
+                    ref={firstFocusableRef}
                     type="text"
                     value={name}
                     onChange={(e) => handleNameChange(e.target.value)}
                     placeholder="e.g. Text Sentiment Analyzer"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="h-8 px-2.5 rounded-[var(--cb-radius-control)] bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] focus:border-[var(--cb-accent)] text-[var(--cb-text-primary)] placeholder-[var(--cb-text-muted)] outline-none transition-colors"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-300">Unique Block ID *</label>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-medium text-[var(--cb-text-secondary)]">
+                    Unique Block ID <span className="text-[var(--cb-accent)]">*</span>
+                  </label>
                   <input
                     type="text"
                     value={id}
-                    onChange={(e) => setId(e.target.value)}
+                    onChange={(e) => {
+                      setId(e.target.value);
+                      setIdManuallyEdited(true);
+                    }}
                     placeholder="custom.sentiment_analyzer"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 font-mono text-slate-300 focus:outline-none focus:border-indigo-500"
+                    className={`h-8 px-2.5 rounded-[var(--cb-radius-control)] bg-[var(--cb-elevation-raised)] border font-mono text-[var(--cb-text-primary)] placeholder-[var(--cb-text-muted)] outline-none transition-colors ${
+                      idError ? "border-rose-500/80 focus:border-rose-500" : "border-[var(--cb-border-subtle)] focus:border-[var(--cb-accent)]"
+                    }`}
                   />
+                  {idError && (
+                    <span className="text-[10px] text-rose-400 flex items-center gap-1 mt-0.5">
+                      <AlertCircle size={10} /> {idError}
+                    </span>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-300">Category</label>
-                  <select
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-medium text-[var(--cb-text-secondary)]">Category</label>
+                  <Select
                     value={category}
-                    onChange={(e) => setCategory(e.target.value as BlockCategory)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500"
-                  >
-                    {CATEGORIES.map((cat) => (
-                      <option key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </option>
-                    ))}
-                  </select>
+                    onValueChange={(val) => setCategory(val as BlockCategory)}
+                    options={CATEGORY_OPTIONS}
+                  />
                 </div>
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-300">Version</label>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-medium text-[var(--cb-text-secondary)]">Version</label>
                   <input
                     type="text"
                     value={version}
                     onChange={(e) => setVersion(e.target.value)}
                     placeholder="0.1.0"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 font-mono text-slate-300 focus:outline-none focus:border-indigo-500"
+                    className="h-8 px-2.5 rounded-[var(--cb-radius-control)] bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] focus:border-[var(--cb-accent)] font-mono text-[var(--cb-text-primary)] placeholder-[var(--cb-text-muted)] outline-none transition-colors"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-300">Description</label>
+              <div className="flex flex-col gap-1.5">
+                <label className="font-medium text-[var(--cb-text-secondary)]">Description</label>
                 <textarea
                   rows={2}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Summarize what this block calculates or transforms..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-indigo-500"
+                  className="p-2.5 rounded-[var(--cb-radius-control)] bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] focus:border-[var(--cb-accent)] text-[var(--cb-text-primary)] placeholder-[var(--cb-text-muted)] outline-none transition-colors resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-300">Author</label>
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-medium text-[var(--cb-text-secondary)]">Author</label>
                   <input
                     type="text"
                     value={author}
                     onChange={(e) => setAuthor(e.target.value)}
                     placeholder="Your name or team"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="h-8 px-2.5 rounded-[var(--cb-radius-control)] bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] focus:border-[var(--cb-accent)] text-[var(--cb-text-primary)] placeholder-[var(--cb-text-muted)] outline-none transition-colors"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-300">Tags (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={tags}
-                    onChange={(e) => setTags(e.target.value)}
-                    placeholder="nlp, sentiment, text, transform"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500"
-                  />
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-medium text-[var(--cb-text-secondary)]">Tags</label>
+                  <div className="min-h-8 p-1 rounded-[var(--cb-radius-control)] bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] focus-within:border-[var(--cb-accent)] flex flex-wrap items-center gap-1">
+                    {tags.map((t) => (
+                      <span
+                        key={t}
+                        className="h-5 px-1.5 rounded-[var(--cb-radius-sm)] bg-white/10 text-[10px] font-mono text-[var(--cb-text-secondary)] flex items-center gap-1"
+                      >
+                        {t}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(t)}
+                          className="hover:text-white cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === ",") {
+                          e.preventDefault();
+                          handleAddTag();
+                        }
+                      }}
+                      onBlur={handleAddTag}
+                      placeholder={tags.length === 0 ? "Add tag + Enter..." : ""}
+                      className="h-6 flex-1 min-w-[80px] bg-transparent text-[11px] text-[var(--cb-text-primary)] placeholder-[var(--cb-text-muted)] outline-none px-1"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -634,18 +773,19 @@ export default function CustomBlockModal({
 
           {/* TAB 2: PORTS */}
           {activeTab === "ports" && (
-            <div className="space-y-6 text-xs">
-              {/* Input Ports */}
+            <div className="space-y-4">
+              {/* Inputs */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-cyan-400 uppercase tracking-wider text-[11px]">
+                  <span className="font-semibold text-cyan-400 text-[11px] uppercase tracking-wider">
                     Incoming Input Ports ({inputs.length})
                   </span>
                   <button
                     onClick={handleAddInput}
-                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-800/60 text-[11px] font-medium"
+                    className="h-6 px-2 rounded-[var(--cb-radius-sm)] bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-800/60 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
                   >
-                    + Add Input Port
+                    <Plus size={11} />
+                    <span>Add Input</span>
                   </button>
                 </div>
 
@@ -653,81 +793,78 @@ export default function CustomBlockModal({
                   {inputs.map((inp, idx) => (
                     <div
                       key={idx}
-                      className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center gap-2"
+                      className="p-2.5 rounded-[var(--cb-radius-control)] bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] flex items-center gap-2"
                     >
                       <div className="flex-1 grid grid-cols-3 gap-2">
-                        <div>
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Port ID</label>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-[var(--cb-text-muted)] font-mono">Port ID</span>
                           <input
                             type="text"
                             value={inp.id}
                             onChange={(e) => handleUpdateInput(idx, { id: e.target.value })}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono text-slate-200"
+                            className="h-7 px-2 rounded bg-[var(--cb-elevation-app)] border border-[var(--cb-border-subtle)] text-[11px] font-mono text-[var(--cb-text-primary)] outline-none focus:border-[var(--cb-accent)]"
                           />
                         </div>
-                        <div>
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Display Label</label>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-[var(--cb-text-muted)] font-mono">Label</span>
                           <input
                             type="text"
                             value={inp.name}
                             onChange={(e) => handleUpdateInput(idx, { name: e.target.value })}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                            className="h-7 px-2 rounded bg-[var(--cb-elevation-app)] border border-[var(--cb-border-subtle)] text-[11px] text-[var(--cb-text-primary)] outline-none focus:border-[var(--cb-accent)]"
                           />
                         </div>
-                        <div>
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Data Type</label>
-                          <select
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-[var(--cb-text-muted)] font-mono">Type</span>
+                          <Select
                             value={inp.type}
-                            onChange={(e) => handleUpdateInput(idx, { type: e.target.value as PortType })}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono text-cyan-400"
-                          >
-                            {PORT_TYPES.map((t) => (
-                              <option key={t} value={t}>
-                                {t}
-                              </option>
-                            ))}
-                          </select>
+                            onValueChange={(val) => handleUpdateInput(idx, { type: val as PortType })}
+                            options={PORT_TYPE_OPTIONS}
+                            triggerClassName="h-7 text-[11px]"
+                          />
                         </div>
                       </div>
 
-                      <label className="flex items-center gap-1.5 cursor-pointer ml-2">
+                      <label className="flex items-center gap-1 cursor-pointer ml-1">
                         <input
                           type="checkbox"
                           checked={Boolean(inp.required)}
                           onChange={(e) => handleUpdateInput(idx, { required: e.target.checked })}
-                          className="rounded bg-slate-900 border-slate-700 text-indigo-600"
+                          className="rounded text-[var(--cb-accent)]"
                         />
-                        <span className="text-[11px] text-slate-400">Req</span>
+                        <span className="text-[10.5px] text-[var(--cb-text-muted)]">Req</span>
                       </label>
 
                       <button
                         onClick={() => handleRemoveInput(idx)}
-                        className="text-slate-500 hover:text-rose-400 p-1.5 rounded transition-colors ml-1"
+                        className="p-1 rounded text-[var(--cb-text-muted)] hover:text-rose-400 hover:bg-rose-950/40 cursor-pointer transition-colors"
                         title="Remove port"
                       >
-                        ✕
+                        <Trash2 size={12} />
                       </button>
                     </div>
                   ))}
+
                   {inputs.length === 0 && (
-                    <p className="text-slate-500 italic p-3 text-center bg-slate-950/40 rounded-xl">
-                      No input ports. This block will act as a source / generator.
+                    <p className="text-center py-4 text-[11px] text-[var(--cb-text-muted)] italic">
+                      No incoming ports defined.
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Output Ports */}
-              <div className="space-y-2">
+              {/* Outputs */}
+              <div className="space-y-2 pt-2 border-t border-[var(--cb-border-subtle)]">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-emerald-400 uppercase tracking-wider text-[11px]">
+                  <span className="font-semibold text-emerald-400 text-[11px] uppercase tracking-wider">
                     Outgoing Output Ports ({outputs.length})
                   </span>
                   <button
                     onClick={handleAddOutput}
-                    className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-800/60 text-[11px] font-medium"
+                    className="h-6 px-2 rounded-[var(--cb-radius-sm)] bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
                   >
-                    + Add Output Port
+                    <Plus size={11} />
+                    <span>Add Output</span>
                   </button>
                 </div>
 
@@ -735,55 +872,51 @@ export default function CustomBlockModal({
                   {outputs.map((out, idx) => (
                     <div
                       key={idx}
-                      className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center gap-2"
+                      className="p-2.5 rounded-[var(--cb-radius-control)] bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] flex items-center gap-2"
                     >
                       <div className="flex-1 grid grid-cols-3 gap-2">
-                        <div>
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Port ID</label>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-[var(--cb-text-muted)] font-mono">Port ID</span>
                           <input
                             type="text"
                             value={out.id}
                             onChange={(e) => handleUpdateOutput(idx, { id: e.target.value })}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono text-slate-200"
+                            className="h-7 px-2 rounded bg-[var(--cb-elevation-app)] border border-[var(--cb-border-subtle)] text-[11px] font-mono text-[var(--cb-text-primary)] outline-none focus:border-[var(--cb-accent)]"
                           />
                         </div>
-                        <div>
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Display Label</label>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-[var(--cb-text-muted)] font-mono">Label</span>
                           <input
                             type="text"
                             value={out.name}
                             onChange={(e) => handleUpdateOutput(idx, { name: e.target.value })}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                            className="h-7 px-2 rounded bg-[var(--cb-elevation-app)] border border-[var(--cb-border-subtle)] text-[11px] text-[var(--cb-text-primary)] outline-none focus:border-[var(--cb-accent)]"
                           />
                         </div>
-                        <div>
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Data Type</label>
-                          <select
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-[var(--cb-text-muted)] font-mono">Type</span>
+                          <Select
                             value={out.type}
-                            onChange={(e) => handleUpdateOutput(idx, { type: e.target.value as PortType })}
-                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono text-emerald-400"
-                          >
-                            {PORT_TYPES.map((t) => (
-                              <option key={t} value={t}>
-                                {t}
-                              </option>
-                            ))}
-                          </select>
+                            onValueChange={(val) => handleUpdateOutput(idx, { type: val as PortType })}
+                            options={PORT_TYPE_OPTIONS}
+                            triggerClassName="h-7 text-[11px]"
+                          />
                         </div>
                       </div>
 
                       <button
                         onClick={() => handleRemoveOutput(idx)}
-                        className="text-slate-500 hover:text-rose-400 p-1.5 rounded transition-colors ml-1"
-                        title="Remove port"
+                        className="p-1 rounded text-[var(--cb-text-muted)] hover:text-rose-400 hover:bg-rose-950/40 cursor-pointer transition-colors ml-1"
+                        title="Remove output"
                       >
-                        ✕
+                        <Trash2 size={12} />
                       </button>
                     </div>
                   ))}
+
                   {outputs.length === 0 && (
-                    <p className="text-slate-500 italic p-3 text-center bg-slate-950/40 rounded-xl">
-                      No output ports. This block will act as a terminal sink / exporter.
+                    <p className="text-center py-4 text-[11px] text-[var(--cb-text-muted)] italic">
+                      No outgoing ports defined.
                     </p>
                   )}
                 </div>
@@ -793,19 +926,20 @@ export default function CustomBlockModal({
 
           {/* TAB 3: PARAMETERS */}
           {activeTab === "params" && (
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-semibold text-slate-200">Properties Panel Config Fields</h4>
-                  <p className="text-[11px] text-slate-500">
-                    Configurable parameters that appear in the Properties sidebar when clicked.
+                  <h4 className="font-semibold text-[var(--cb-text-primary)] text-[12px]">Configurable Parameters</h4>
+                  <p className="text-[11px] text-[var(--cb-text-muted)]">
+                    Exposed in Properties Inspector when this block is selected on the canvas.
                   </p>
                 </div>
                 <button
                   onClick={handleAddParam}
-                  className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-800/60 font-medium"
+                  className="h-6 px-2.5 rounded-[var(--cb-radius-sm)] bg-white/10 hover:bg-white/15 text-white text-[11px] font-medium flex items-center gap-1 cursor-pointer transition-colors"
                 >
-                  + Add Parameter
+                  <Plus size={11} />
+                  <span>Add Parameter</span>
                 </button>
               </div>
 
@@ -813,68 +947,63 @@ export default function CustomBlockModal({
                 {params.map((p, idx) => (
                   <div
                     key={idx}
-                    className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl grid grid-cols-4 gap-2 items-center"
+                    className="p-2.5 rounded-[var(--cb-radius-control)] bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] grid grid-cols-4 gap-2 items-center"
                   >
-                    <div>
-                      <label className="text-[10px] text-slate-500 block mb-0.5">Variable Key</label>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] text-[var(--cb-text-muted)] font-mono">Variable Key</span>
                       <input
                         type="text"
                         value={p.key}
                         onChange={(e) => handleUpdateParam(idx, { key: e.target.value })}
                         placeholder="e.g. learning_rate"
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono text-slate-200"
+                        className="h-7 px-2 rounded bg-[var(--cb-elevation-app)] border border-[var(--cb-border-subtle)] text-[11px] font-mono text-[var(--cb-text-primary)] outline-none focus:border-[var(--cb-accent)]"
                       />
                     </div>
-                    <div>
-                      <label className="text-[10px] text-slate-500 block mb-0.5">Label</label>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] text-[var(--cb-text-muted)] font-mono">Label</span>
                       <input
                         type="text"
                         value={p.label}
                         onChange={(e) => handleUpdateParam(idx, { label: e.target.value })}
                         placeholder="e.g. Learning Rate"
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                        className="h-7 px-2 rounded bg-[var(--cb-elevation-app)] border border-[var(--cb-border-subtle)] text-[11px] text-[var(--cb-text-primary)] outline-none focus:border-[var(--cb-accent)]"
                       />
                     </div>
-                    <div>
-                      <label className="text-[10px] text-slate-500 block mb-0.5">Field Type</label>
-                      <select
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] text-[var(--cb-text-muted)] font-mono">Type</span>
+                      <Select
                         value={p.type}
-                        onChange={(e) =>
-                          handleUpdateParam(idx, { type: e.target.value as BlockConfigField["type"] })
+                        onValueChange={(val) =>
+                          handleUpdateParam(idx, { type: val as BlockConfigField["type"] })
                         }
-                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono text-slate-300"
-                      >
-                        <option value="string">string</option>
-                        <option value="number">number</option>
-                        <option value="boolean">boolean</option>
-                        <option value="select">select</option>
-                        <option value="slider">slider</option>
-                        <option value="file">file</option>
-                      </select>
+                        options={PARAM_TYPE_OPTIONS}
+                        triggerClassName="h-7 text-[11px]"
+                      />
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <div className="flex-1">
-                        <label className="text-[10px] text-slate-500 block mb-0.5">Default Value</label>
+                      <div className="flex-1 flex flex-col gap-1">
+                        <span className="text-[10px] text-[var(--cb-text-muted)] font-mono">Default</span>
                         <input
                           type="text"
                           value={p.defaultValue}
                           onChange={(e) => handleUpdateParam(idx, { defaultValue: e.target.value })}
-                          className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 font-mono text-slate-300"
+                          className="h-7 px-2 rounded bg-[var(--cb-elevation-app)] border border-[var(--cb-border-subtle)] text-[11px] font-mono text-[var(--cb-text-primary)] outline-none focus:border-[var(--cb-accent)]"
                         />
                       </div>
                       <button
                         onClick={() => handleRemoveParam(idx)}
-                        className="text-slate-500 hover:text-rose-400 p-1.5 rounded transition-colors mt-3"
+                        className="p-1 rounded text-[var(--cb-text-muted)] hover:text-rose-400 hover:bg-rose-950/40 cursor-pointer transition-colors mt-4"
+                        title="Remove parameter"
                       >
-                        ✕
+                        <Trash2 size={12} />
                       </button>
                     </div>
                   </div>
                 ))}
 
                 {params.length === 0 && (
-                  <p className="text-slate-500 italic p-3 text-center bg-slate-950/40 rounded-xl">
-                    No custom parameters defined. Click "+ Add Parameter" to add one.
+                  <p className="text-center py-4 text-[11px] text-[var(--cb-text-muted)] italic">
+                    No custom parameters defined.
                   </p>
                 )}
               </div>
@@ -883,80 +1012,85 @@ export default function CustomBlockModal({
 
           {/* TAB 4: PYTHON CODE */}
           {activeTab === "code" && (
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-semibold text-slate-200">Executable Python Logic</h4>
-                  <p className="text-[11px] text-slate-500">
-                    Script executed in subprocess. Inputs are in `inputs[...]`, outputs in `outputs[...]`.
+                  <h4 className="font-semibold text-[var(--cb-text-primary)] text-[12px]">Executable Python Logic</h4>
+                  <p className="text-[11px] text-[var(--cb-text-muted)]">
+                    Inputs are in <code className="text-cyan-400 font-mono">inputs[...]</code>, outputs in{" "}
+                    <code className="text-emerald-400 font-mono">outputs[...]</code>.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-slate-500">Templates:</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-[var(--cb-text-muted)] mr-1">Templates:</span>
                   <button
                     onClick={() => setPythonCode(CODE_TEMPLATES.transform)}
-                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px]"
+                    className="h-6 px-2 rounded bg-white/5 hover:bg-white/10 text-[10.5px] text-[var(--cb-text-secondary)] hover:text-white transition-colors cursor-pointer"
                   >
                     Data
                   </button>
                   <button
                     onClick={() => setPythonCode(CODE_TEMPLATES.model)}
-                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px]"
+                    className="h-6 px-2 rounded bg-white/5 hover:bg-white/10 text-[10.5px] text-[var(--cb-text-secondary)] hover:text-white transition-colors cursor-pointer"
                   >
                     Model
                   </button>
                   <button
                     onClick={() => setPythonCode(CODE_TEMPLATES.metric)}
-                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px]"
+                    className="h-6 px-2 rounded bg-white/5 hover:bg-white/10 text-[10.5px] text-[var(--cb-text-secondary)] hover:text-white transition-colors cursor-pointer"
                   >
                     Metric
                   </button>
                 </div>
               </div>
 
-              <div className="relative">
-                <textarea
-                  rows={14}
-                  value={pythonCode}
-                  onChange={(e) => setPythonCode(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl p-3 font-mono text-xs text-emerald-300 focus:outline-none focus:border-indigo-500 leading-relaxed shadow-inner"
-                  spellCheck={false}
-                />
-              </div>
-
-              <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-1 text-[11px] text-slate-400">
-                <div className="font-semibold text-slate-300">Available Variable Bindings:</div>
-                <div>• <code className="text-cyan-300">inputs["port_id"]</code>: Input data received from connected nodes.</div>
-                <div>• <code className="text-emerald-300">outputs["port_id"] = result</code>: Values emitted to downstream nodes.</div>
-                <div>• <code className="text-amber-300">config["param_name"]</code>: Values configured in Properties Panel.</div>
-              </div>
+              <textarea
+                rows={12}
+                value={pythonCode}
+                onChange={(e) => setPythonCode(e.target.value)}
+                className="w-full bg-[var(--cb-elevation-raised)] border border-[var(--cb-border-subtle)] focus:border-[var(--cb-accent)] rounded-[var(--cb-radius-control)] p-3 font-mono text-[11.5px] text-emerald-300 outline-none leading-relaxed resize-none"
+                spellCheck={false}
+              />
             </div>
           )}
         </div>
 
-        {/* Footer Actions */}
-        <div className="px-6 py-3.5 border-t border-white/10 flex items-center justify-between bg-black/40">
-          <div className="text-[11px] text-slate-500 font-mono">
-            {editBlockId ? `Editing ${editBlockId}` : "New custom block"}
+        {/* ── Footer: Draft Status & Primary Action ── */}
+        <div className="h-12 px-6 border-t border-[var(--cb-border-subtle)] flex items-center justify-between bg-[var(--cb-elevation-raised)] shrink-0">
+          {/* Left: Validation/Draft status */}
+          <div className="flex items-center gap-2 text-[11px]">
+            {issues.length > 0 ? (
+              <span className="text-amber-400 flex items-center gap-1.5 font-medium">
+                <AlertCircle size={12} />
+                <span>Draft • {issues.length} {issues.length === 1 ? "issue" : "issues"}</span>
+              </span>
+            ) : (
+              <span className="text-emerald-400 flex items-center gap-1.5 font-medium">
+                <Check size={12} />
+                <span>Ready to save</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-1.5 rounded-xl border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 text-xs font-medium transition-colors"
+              className="h-7 px-3 rounded-[var(--cb-radius-control)] border border-[var(--cb-border-subtle)] hover:bg-white/10 text-[var(--cb-text-secondary)] hover:text-white text-[12px] font-medium transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="px-5 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-semibold transition-all shadow-lg shadow-amber-950/60 flex items-center gap-1.5 cursor-pointer"
+              disabled={issues.length > 0}
+              className="h-7 px-4 rounded-[var(--cb-radius-control)] bg-[var(--cb-accent)] hover:bg-[var(--cb-accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-white text-[12px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
             >
-              <span>{editBlockId ? "Update Block" : "Save & Register Block"}</span>
+              <span>{editBlockId ? "Update Block" : "Save Block"}</span>
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
